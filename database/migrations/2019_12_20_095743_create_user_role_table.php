@@ -11,14 +11,21 @@ class CreateUserRoleTable extends Migration {
 	 * @return void
 	 */
 	public function up()
-	{
-		Schema::create('user_role', function(Blueprint $table)
-		{
-			$table->integer('role_id');
-			$table->integer('user_id');
-		});
-	}
+{
+    Schema::create('user_role', function(Blueprint $table)
+    {
+        // On utilise unsignedBigInteger pour matcher users.id et roles.id
+        $table->unsignedBigInteger('role_id');
+        $table->unsignedBigInteger('user_id');
 
+        // Ajout des clés étrangères ici
+        $table->foreign('role_id')->references('id')->on('roles')->onDelete('cascade');
+        $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+
+        // Optionnel mais recommandé : une clé primaire composée
+        $table->primary(['role_id', 'user_id']);
+    });
+}
 
 	/**
 	 * Reverse the migrations.

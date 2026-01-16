@@ -10,24 +10,23 @@ class CreateImageriesTable extends Migration {
 	 *
 	 * @return void
 	 */
-	public function up()
-	{
-		Schema::create('imageries', function(Blueprint $table)
-		{
-			$table->integer('id', true, true);
-			$table->integer('user_id')->nullable()->index();
-			$table->integer('patient_id')->nullable()->index();
-			$table->string('radiographie')->nullable();
-			$table->string('echographie')->nullable();
-			$table->string('scanner')->nullable();
-			$table->string('irm')->nullable();
-			$table->string('scintigraphie')->nullable();
-			$table->string('autre')->nullable();
-			$table->timestamps();
-		});
-	}
+public function up() {
+    Schema::create('imageries', function(Blueprint $table) {
+        $table->id();
+        $table->unsignedBigInteger('user_id')->nullable()->index();
+        $table->unsignedBigInteger('patient_id')->nullable()->index();
+        $table->string('radiographie')->nullable();
+        $table->string('echographie')->nullable();
+        $table->string('scanner')->nullable();
+        $table->string('irm')->nullable();
+        $table->string('scintigraphie')->nullable();
+        $table->string('autre')->nullable();
+        $table->timestamps();
 
-
+        $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+        $table->foreign('patient_id')->references('id')->on('patients')->onDelete('cascade');
+    });
+}
 	/**
 	 * Reverse the migrations.
 	 *

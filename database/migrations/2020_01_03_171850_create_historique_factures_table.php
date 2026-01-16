@@ -12,32 +12,42 @@ class CreateHistoriqueFacturesTable extends Migration
      * @return void
      */
     public function up()
-    {
-        Schema::create('historique_factures', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->timestamps();
-            $table->integer('facture_consultation_id');
+{
+    Schema::create('historique_factures', function (Blueprint $table) {
+        $table->id(); // Utilise id() au lieu de bigIncrements('id') pour la consistance
 
-            $table->integer('user_id')->nullable();
-			$table->integer('patient_id')->nullable();
-			$table->integer('numero')->nullable();
-			$table->string('motif')->nullable();
-			$table->string('montant')->nullable();
-            $table->integer('avance')->nullable();
-            $table->integer('percu')->nullable();
-			$table->integer('reste')->nullable();
-			$table->string('assurance')->nullable();
-			$table->integer('assurancec')->nullable();
-			$table->integer('assurec')->nullable();
-			$table->string('demarcheur')->nullable();
-			$table->string('prenom')->nullable();
-			$table->date('date_insertion')->nullable();
-			$table->string('medecin_r')->nullable();
+        // Correction des types pour les clés étrangères
+        $table->unsignedBigInteger('facture_consultation_id');
+        $table->unsignedBigInteger('user_id')->nullable();
+        $table->unsignedBigInteger('patient_id')->nullable();
 
-            $table->foreign('facture_consultation_id')->references('id')->on('facture_consultations')->onUpdate('CASCADE')->onDelete('CASCADE');
-        });
-    }
+        $table->integer('numero')->nullable();
+        $table->string('motif')->nullable();
+        $table->string('montant')->nullable();
+        $table->integer('avance')->nullable();
+        $table->integer('percu')->nullable();
+        $table->integer('reste')->nullable();
+        $table->string('assurance')->nullable();
+        $table->integer('assurancec')->nullable();
+        $table->integer('assurec')->nullable();
+        $table->string('demarcheur')->nullable();
+        $table->string('prenom')->nullable();
+        $table->date('date_insertion')->nullable();
+        $table->string('medecin_r')->nullable();
+        $table->timestamps();
 
+        // Contraintes
+        $table->foreign('facture_consultation_id')
+              ->references('id')
+              ->on('facture_consultations')
+              ->onUpdate('CASCADE')
+              ->onDelete('CASCADE');
+
+        // Optionnel : ajouter les clés pour user et patient si les tables existent
+        $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
+        $table->foreign('patient_id')->references('id')->on('patients')->onDelete('set null');
+    });
+}
     /**
      * Reverse the migrations.
      *

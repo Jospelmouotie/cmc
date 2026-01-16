@@ -10,29 +10,30 @@ class CreatePrescriptionMedicalesTable extends Migration {
 	 *
 	 * @return void
 	 */
-	public function up()
-	{
-		Schema::create('prescription_medicales', function(Blueprint $table)
-		{
-			$table->integer('id', true, true);
-			$table->integer('user_id')->index();
-			$table->integer('patient_id')->index();
-			$table->string('allergie')->nullable();
-			$table->date('date');
-			$table->string('medicament');
-			$table->string('posologie');
-			$table->string('voie');
-			$table->integer('heure');
-			$table->string('matin')->nullable();
-			$table->string('apre_midi')->nullable();
-			$table->string('soir')->nullable();
-			$table->text('regime')->nullable();
-			$table->text('consultation_specialise')->nullable();
-			$table->text('protocole')->nullable();
-			$table->string('nuit')->nullable();
-		});
-	}
+	public function up() {
+    Schema::create('prescription_medicales', function(Blueprint $table) {
+        $table->id();
+        $table->unsignedBigInteger('user_id')->index();
+        $table->unsignedBigInteger('patient_id')->index();
+        $table->string('allergie')->nullable();
+        $table->date('date');
+        $table->string('medicament');
+        $table->string('posologie'); // Corrigé ici
+        $table->string('voie');
+        $table->integer('heure');
+        $table->string('matin')->nullable();
+        $table->string('apre_midi')->nullable();
+        $table->string('soir')->nullable();
+        $table->string('nuit')->nullable();
+        $table->text('regime')->nullable();
+        $table->text('consultation_specialise')->nullable();
+        $table->text('protocole')->nullable();
+        $table->timestamps();
 
+        $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+        $table->foreign('patient_id')->references('id')->on('patients')->onDelete('cascade');
+    });
+}
 
 	/**
 	 * Reverse the migrations.

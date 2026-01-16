@@ -11,22 +11,24 @@ class CreateAdminPrescriptionMedicalesTable extends Migration
      *
      * @return void
      */
-    public function up()
-    {
-        Schema::create('admin_prescription_medicales', function (Blueprint $table) {
-            $table->increments('id');
-            $table->integer('prescription_medicale_id');
-            $table->integer('user_id')->index();
-            $table->string('matin')->nullable();
-			$table->string('apre_midi')->nullable();
-			$table->string('soir')->nullable();
-			$table->string('nuit')->nullable();
-            $table->timestamps();
+  public function up()
+{
+    Schema::create('admin_prescription_medicales', function (Blueprint $table) {
+        $table->id();
+        $table->unsignedBigInteger('prescription_medicale_id');
+        $table->unsignedBigInteger('user_id')->index();
+        $table->string('matin')->nullable();
+        $table->string('apre_midi')->nullable();
+        $table->string('soir')->nullable();
+        $table->string('nuit')->nullable();
+        $table->timestamps();
 
-            $table->foreign('prescription_medicale_id')->references('id')->on('prescription_medicales')->onUpdate('CASCADE')->onDelete('CASCADE');
-            $table->foreign('user_id')->references('id')->on('users');
-        });
-    }
+        $table->foreign('prescription_medicale_id', 'fk_admin_presc')
+              ->references('id')->on('prescription_medicales')
+              ->onUpdate('CASCADE')->onDelete('CASCADE');
+        $table->foreign('user_id')->references('id')->on('users');
+    });
+}
 
     /**
      * Reverse the migrations.

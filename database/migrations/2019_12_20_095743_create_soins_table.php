@@ -2,48 +2,46 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 class CreateSoinsTable extends Migration {
 
-	/**
-	 * Run the migrations.
-	 *
-	 * @return void
-	 */
-	public function up()
-	{
-		Schema::create('soins', function(Blueprint $table)
-		{
-			$table->integer('id', true, true);
-			$table->integer('user_id');
-			$table->integer('patient_id');
-			$table->text('content');
-			$table->string('contexte');
-			$table->timestamps();
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::create('soins', function(Blueprint $table)
+        {
+            // On utilise id() pour le BigInt standard
+            $table->id();
 
-			// Add indexes on foreign keys and frequently queried columns
-			$table->foreign('user_id')->references('id')->on('users');
-			$table->foreign('patient_id')->references('id')->on('patients');
-			$table->index(['contexte', 'created_at']); // Composite index for common queries
-		});
-	}
+            // IMPORTANT : unsignedBigInteger pour matcher users.id et patients.id
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('patient_id');
 
+            $table->text('content');
+            $table->string('contexte');
+            $table->timestamps();
 
-	/**
-	 * Reverse the migrations.
-	 *
-	 * @return void
-	 */
-	public function down()
-	{
-		Schema::table('soins', function(Blueprint $table) {
-			$table->dropForeign(['user_id']);
-			$table->dropForeign(['patient_id']); 
-			$table->dropIndex(['contexte', 'created_at']);
-		});
-		Schema::drop('soins');
-	}
+            // Définition des clés étrangères
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('patient_id')->references('id')->on('patients')->onDelete('cascade');
 
+            // Index de performance
+            $table->index(['contexte', 'created_at']);
+        });
+    }
+
+    /**a
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::dropIfExists('soins');
+    }
 }
-
-

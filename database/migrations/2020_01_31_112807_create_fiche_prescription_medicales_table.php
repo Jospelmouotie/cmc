@@ -11,21 +11,23 @@ class CreateFichePrescriptionMedicalesTable extends Migration
      *
      * @return void
      */
-    public function up()
-    {
-        Schema::create('fiche_prescription_medicales', function (Blueprint $table) {
-            $table->increments('id');
-			$table->integer('patient_id')->index();
-            $table->text('regime')->nullable();
-			$table->text('consultation_specialise')->nullable();
-			$table->text('protocole')->nullable();
-			$table->string('allergie')->nullable();
-            $table->timestamps();
+  public function up()
+{
+    Schema::create('prescription_medicales', function (Blueprint $table) {
+        $table->id(); // BigInt
+        $table->unsignedBigInteger('fiche_prescription_medicale_id')->nullable();
+        $table->unsignedBigInteger('user_id')->index();
+        $table->string('medicament');
+        $table->string('posologie');
+        $table->string('voie');
+        $table->string('horaire');
+        $table->timestamps();
 
-            $table->foreign('patient_id')->references('id')->on('patients')->onUpdate('CASCADE')->onDelete('CASCADE');
-        });
-    }
-
+        $table->foreign('fiche_prescription_medicale_id', 'fk_fiche_presc')
+              ->references('id')->on('fiche_prescription_medicales')
+              ->onDelete('cascade');
+    });
+}
     /**
      * Reverse the migrations.
      *
