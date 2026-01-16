@@ -15,3 +15,8 @@ php artisan nksoftcare:active-licence-key
 
 echo "Démarrage d'Apache..."
 exec apache2-foreground
+
+#!/bin/bash
+
+# Régénérer la découverte des packages maintenant que tout est installé
+php artisan package:discover --ansi

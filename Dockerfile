@@ -44,7 +44,8 @@ RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 # 8. Gestion des permissions
 RUN chown -R www-data:www-data storage bootstrap/cache
 RUN chmod -R 775 storage bootstrap/cache
-
+# On ajoute --no-scripts pour éviter que Laravel cherche des classes manquantes durant l'install
+RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs --no-scripts
 # 9. Préparation du script de démarrage
 # Vérifie bien que ton fichier est dans le dossier /scripts/ dans ton projet
 RUN chmod +x /var/www/html/scripts/entrypoint.sh
