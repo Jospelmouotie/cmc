@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     git \
     && docker-php-ext-install pdo pdo_pgsql pgsql
 
-# 3. Activation du module rewrite d'Apache
+# 3. Activation du mdule rewrite d'Apache
 RUN a2enmod rewrite
 # 1. Installation des dépendances système pour GD et Intl
 RUN apt-get update && apt-get install -y \
