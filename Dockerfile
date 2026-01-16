@@ -43,11 +43,11 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # On force la suppression du cache des services pour éviter l'erreur IdeHelper
 RUN rm -f bootstrap/cache/services.php bootstrap/cache/packages.php
 RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs --no-scripts
-
 # 9. Permissions
+# On crée les dossiers au cas où ils manquent, puis on change les droits
+RUN mkdir -p storage bootstrap/cache storage/framework/sessions storage/framework/views storage/framework/cache
 RUN chown -R www-data:www-data storage bootstrap/cache
 RUN chmod -R 775 storage bootstrap/cache
-
 # 10. Entrypoint
 RUN chmod +x /var/www/html/scripts/entrypoint.sh
 RUN ln -sf /var/www/html/scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
