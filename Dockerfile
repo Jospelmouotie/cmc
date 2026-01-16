@@ -49,8 +49,9 @@ RUN mkdir -p storage bootstrap/cache storage/framework/sessions storage/framewor
 RUN chown -R www-data:www-data storage bootstrap/cache
 RUN chmod -R 775 storage bootstrap/cache
 # 10. Entrypoint
-RUN chmod +x /var/www/html/scripts/entrypoint.sh
-RUN ln -sf /var/www/html/scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+# Note le chemin : script/ (sans 's')
+RUN chmod +x /var/www/html/script/entrypoint.sh
+RUN ln -sf /var/www/html/script/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 EXPOSE 80
 
