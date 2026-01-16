@@ -1,5 +1,7 @@
 #!/bin/bash
-
+#!/bin/bash
+# Re-générer la liste des services (vu qu'on a utilisé --no-scripts)
+php artisan package:discover --ansi
 php artisan config:clear
 php artisan cache:clear
 
@@ -18,5 +20,3 @@ exec apache2-foreground
 
 #!/bin/bash
 
-# Régénérer la découverte des packages maintenant que tout est installé
-php artisan package:discover --ansi
