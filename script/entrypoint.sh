@@ -1,19 +1,19 @@
 #!/bin/bash
 
-# Supprimer les anciens caches pour forcer Laravel à relire config/app.php
+# Supprimer les anciens caches pour éviter les conflits de configuration
 php artisan config:clear
 php artisan cache:clear
-php artisan view:clear
-php artisan route:clear
 
-# Re-générer la liste des services disponibles
-php artisan package:discover --ansi
+# Indispensable après avoir renommé un dossier pour que Linux mette à jour les chemins
+composer dump-autoload --optimize
 
 echo "Exécution des migrations..."
+# Rappel : Vérifie bien tes variables DB_HOST etc. sur Render si ça bloque ici
 php artisan migrate --force
 
 echo "Création du compte administrateur..."
-php artisan db:seed --class=AdminUserSeeder --force
+# Appel de la classe avec son namespace complet
+php artisan db:seed --class="Database\\Seeders\\AdminUserSeeder" --force
 
 echo "Activation de la licence..."
 php artisan nksoftcare:active-licence-key
