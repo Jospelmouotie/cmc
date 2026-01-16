@@ -1,22 +1,25 @@
 #!/bin/bash
 
-# Supprimer les anciens caches pour éviter les conflits de configuration
+# 1. Nettoyage radical des caches
+rm -f bootstrap/cache/config.php
 php artisan config:clear
 php artisan cache:clear
 
-# Indispensable après avoir renommé un dossier pour que Linux mette à jour les chemins
+# 2. Re-générer l'autoloader
 composer dump-autoload --optimize
 
-echo "Exécution des migrations..."
-# Rappel : Vérifie bien tes variables DB_HOST etc. sur Render si ça bloque ici
+# 3. CRÉER LES TABLES (La migration doit être faite EN PREMIER)
+echo "Création des tables dans la base de données..."
 php artisan migrate --force
 
+# 4. REMPLIR LES DONNÉES (Seulement après les migrations)
 echo "Création du compte administrateur..."
-# Appel de la classe avec son namespace complet
 php artisan db:seed --class="Database\\Seeders\\AdminUserSeeder" --force
 
+# 5. ACTIONS ADDITIONNELLES
 echo "Activation de la licence..."
 php artisan nksoftcare:active-licence-key
 
+# 6. LANCER LE SERVEUR
 echo "Démarrage d'Apache..."
 exec apache2-foreground
