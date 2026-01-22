@@ -1,0 +1,426 @@
+Below are focused updates to implement the pre-registered devis elements with unit prices, allow a gestionnaire to create a devis for a chosen patient, automatically calculate totals, and let a médecin validate and apply reductions by percentage. Admins can add/manage catalog items. I’ve kept changes minimal and highlighted insertions in each file.
+
+File references:
+- <mcfile name="Devi.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Models\Devi.php"></mcfile>
+- <mcfile name="Devispolicy.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Policies\Devispolicy.php"></mcfile>
+- <mcfile name="DevisController.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Http\Controllers\DevisController.php"></mcfile>
+- <mcfile name="web.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\routes\web.php"></mcfile>
+- <mcfile name="index.blade.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\resources\views\admin\devis\index.blade.php"></mcfile>
+- <mcfile name="create_devis_items_table.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\database\migrations\2026_01_20_000001_create_devis_items_table.php"></mcfile>
+- <mcfile name="alter_devis_add_workflow_fields.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\database\migrations\2026_01_20_000002_alter_devis_add_workflow_fields.php"></mcfile>
+- <mcfile name="DevisItem.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Models\DevisItem.php"></mcfile>
+
+Symbols referenced:
+- <mcsymbol name="Devi" filename="Devi.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Models\Devi.php" startline="7" type="class"></mcsymbol>
+- <mcsymbol name="Devispolicy" filename="Devispolicy.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Policies\Devispolicy.php" startline="9" type="class"></mcsymbol>
+- <mcsymbol name="DevisItem" filename="DevisItem.php" path="c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Models\DevisItem.php" startline="1" type="class"></mcsymbol>
+
+Summary of changes:
+- Add DevisItem model and migration for admin-managed catalog of elements and unit prices.
+- Add workflow fields to devis (patient_id, status, total, discount_percent, total_after_discount, assigned_doctor_id).
+- Update Devispolicy to allow médecin to approve reductions; expand who can update/print as needed.
+- Add API endpoint to fetch catalog items and controller action to approve reduction.
+- Enhance devis modal to show element suggestions (datalist) with auto-filled unit price and total calculation. Add reduction UI for médecin.
+- Update store flow to compute total, attach patient, and mark status as pending for doctor validation.
+
+1) Create catalog model and migration for pre-registered devis elements
+```php:c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Models\DevisItem.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class DevisItem extends Model
+{
+    protected $fillable = ['name', 'unit_price', 'active'];
+}
+```
+
+```php:c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\database\migrations\2026_01_20_000001_create_devis_items_table.php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateDevisItemsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('devis_items', function (Blueprint $table) {
+            $table->increments('id');
+            $table->string('name')->unique();
+            $table->integer('unit_price');
+            $table->boolean('active')->default(true);
+            $table->timestamps();
+        });
+
+        // Seed common items (optional quick start)
+        DB::table('devis_items')->insert([
+            ['name' => 'CS ANESTHESIQUE EN INTERNE', 'unit_price' => 0, 'active' => true],
+            ['name' => 'CS ANESTHESIQUE', 'unit_price' => 0, 'active' => true],
+            ['name' => 'CONSULTATION ANESTHESISTE', 'unit_price' => 0, 'active' => true],
+            ['name' => 'CONSULTATION DU SPECIALISTE', 'unit_price' => 0, 'active' => true],
+            ['name' => 'KC', 'unit_price' => 0, 'active' => true],
+            ['name' => 'KC + PRELEVEMENT', 'unit_price' => 0, 'active' => true],
+            ['name' => 'KA', 'unit_price' => 0, 'active' => true],
+            ['name' => 'KB', 'unit_price' => 0, 'active' => true],
+            ['name' => 'K(Amplificateur de Brillance)', 'unit_price' => 0, 'active' => true],
+        ]);
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('devis_items');
+    }
+}
+```
+
+2) Add workflow fields to devis
+```php:c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\database\migrations\2026_01_20_000002_alter_devis_add_workflow_fields.php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class AlterDevisAddWorkflowFields extends Migration
+{
+    public function up()
+    {
+        Schema::table('devis', function (Blueprint $table) {
+            $table->integer('patient_id')->nullable()->index();
+            $table->string('status')->default('pending')->index(); // pending, approved
+            $table->integer('total')->default(0);
+            $table->integer('discount_percent')->default(0);
+            $table->integer('total_after_discount')->default(0);
+            $table->integer('assigned_doctor_id')->nullable()->index();
+
+            $table->foreign('patient_id')->references('id')->on('patients');
+            $table->foreign('assigned_doctor_id')->references('id')->on('users');
+        });
+    }
+
+    public function down()
+    {
+        Schema::table('devis', function (Blueprint $table) {
+            $table->dropForeign(['patient_id']);
+            $table->dropForeign(['assigned_doctor_id']);
+            $table->dropColumn([
+                'patient_id',
+                'status',
+                'total',
+                'discount_percent',
+                'total_after_discount',
+                'assigned_doctor_id',
+            ]);
+        });
+    }
+}
+```
+
+3) Extend Devi model with relations
+```php:c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Models\Devi.php
+class Devi extends Model
+{
+    protected $guarded = [];
+    
+    public function modifiePar()
+    {
+        return $this->belongsTo(\App\Models\User::class);
+    }
+
+    public function ligneDevis()
+    {
+        return $this->hasMany(\App\Models\LigneDevi::class);
+    }
+
+    // ... existing code ...
+
+    // INSERT: relations for workflow
+    public function patient()
+    {
+        return $this->belongsTo(\App\Models\Patient::class);
+    }
+
+    public function assignedDoctor()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'assigned_doctor_id');
+    }
+}
+```
+
+4) Update Devis policy to allow médecin approve reductions
+```php:c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Policies\Devispolicy.php
+class Devispolicy
+{
+    use HandlesAuthorization;
+
+    public function before(User $user, $ability)
+    {
+        if ($user->isAdmin() && $user->isCaisse() && $user->isMedecin() && $user->isLogistique()) {
+
+            return true;
+        }
+    }
+
+    public function create(User $user)
+    {
+        return in_array(auth()->user()->role_id, [
+            1,3,6
+        ]);
+    }
+
+    public function update(User $user)
+    {
+        // INSERT: allow médecin to update/validate devis
+        return in_array(auth()->user()->role_id, [
+            1,2,3,6
+        ]);
+    }
+
+    public function print(User $user)
+    {
+        return in_array(auth()->user()->role_id, [
+            1,3,6
+        ]);
+
+    }
+
+    public function view(User $user)
+    {
+        return in_array(auth()->user()->role_id, [
+            1,3,6,2
+        ]);
+
+    }
+
+    public function delete(User $user)
+    {
+        return in_array(auth()->user()->role_id, [
+            1
+        ]);
+
+    }
+
+    // INSERT: approval (apply reduction) permission
+    public function approve(User $user)
+    {
+        return in_array(auth()->user()->role_id, [
+            1,2
+        ]);
+    }
+}
+```
+
+5) Controller: API for items, store total/status, approve reduction
+```php:c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\app\Http\Controllers\DevisController.php
+class DevisController extends Controller
+{
+    // ... existing imports ...
+    // INSERT: DevisItem import
+    use App\Models\DevisItem;
+
+    // ... existing code ...
+
+    public function store(Request $request)
+    {
+        $this->authorize('create', Devi::class);
+        $request->validate([
+            // ... existing validation ...
+            'patient' => 'required|integer|exists:patients,id',
+        ]);
+
+        DB::transaction(function () use ($request) {
+            // INSERT: compute total and attach patient/status
+            $patientId = (int) $request->input('patient');
+            $lignedevis = $request->input('ligneDevi', []);
+            $total = 0;
+            foreach ($lignedevis as $ligneDevi) {
+                $qte = (int) ($ligneDevi['quantite'] ?? 0);
+                $pu = (int) ($ligneDevi['prix_u'] ?? 0);
+                $total += $qte * $pu;
+            }
+
+            $assignedDoctorId = null;
+            $patient = \App\Models\Patient::find($patientId);
+            if ($patient) {
+                // Try to find doctor by "medecin_r" (optional best-effort)
+                $fullName = trim((string) $patient->medecin_r);
+                if (!empty($fullName)) {
+                    $assignedDoctorId = \App\Models\User::whereRaw("CONCAT(name, ' ', prenom) = ?", [$fullName])->value('id');
+                }
+            }
+
+            $devis = Devi::create([
+                'nom' => $request->input('nom_devis'),
+                'nbr_chambre' => $request->input('nbr_chambre'),
+                'nbr_visite' => $request->input('nbr_visite'),
+                'nbr_ami_jour' => $request->input('nbr_ami_jour'),
+                'pu_chambre' => $request->input('pu_chambre'),
+                'pu_visite' => $request->input('pu_visite'),
+                'pu_ami_jour' => $request->input('pu_ami_jour'),
+                'code' => $request->input('code_devis') ?? \Carbon\Carbon::now()->toDateString().'/'.substr($request->input('nom_devis'),0,4),
+                'acces' => $request->input('acces_devis'),
+                'user_id' =>  \Illuminate\Support\Facades\Auth::id(),
+                // INSERT: new workflow fields
+                'patient_id' => $patientId,
+                'status' => 'pending',
+                'total' => $total,
+                'discount_percent' => 0,
+                'total_after_discount' => $total,
+                'assigned_doctor_id' => $assignedDoctorId,
+            ]);
+
+            foreach ($lignedevis as $ligneDevi) {
+                $devis->ligneDevis()->save(new LigneDevi([
+                    "element" => $ligneDevi["element"],
+                    "quantite" => $ligneDevi["quantite"],
+                    "prix_u" => $ligneDevi["prix_u"],
+                ]));
+            }
+
+            Cache::forget('devis_list');
+            Cache::tags(['devis'])->flush();
+        });
+
+        return with('success', 'Devis enregistrer avec success !');
+    }
+
+    // INSERT: fetch catalog items (for datalist)
+    public function apiDevisItems()
+    {
+        $items = DevisItem::where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'unit_price']);
+        return response()->json($items);
+    }
+
+    // INSERT: médecin approval with reduction percentage
+    public function approveReduction(Request $request, Devi $devis)
+    {
+        $this->authorize('approve', Devi::class);
+
+        $request->validate([
+            'percent' => 'required|integer|in:0,5,10,15,20,25,30',
+        ]);
+
+        $percent = (int) $request->input('percent', 0);
+        $total = (int) $devis->total;
+        $discounted = (int) round($total * (100 - $percent) / 100);
+
+        $devis->discount_percent = $percent;
+        $devis->total_after_discount = $discounted;
+        $devis->status = 'approved';
+        $devis->save();
+
+        return redirect()->back()->with('success', 'Réduction appliquée et devis approuvé.');
+    }
+
+    // OPTIONAL: list pending devis for médecin
+    public function pending()
+    {
+        $this->authorize('view', Devi::class);
+
+        $userId = auth()->id();
+        $devis = Devi::where('status', 'pending')
+            ->when(auth()->user()->isMedecin(), function ($q) use ($userId) {
+                $q->where('assigned_doctor_id', $userId);
+            })
+            ->latest()->limit(100)->get();
+
+        $patients = \App\Models\Patient::orderBy('created_at', 'DESC')->select('id','name', 'prenom')->get();
+        return view('admin.devis.index', compact('devis','patients'));
+    }
+
+    // ... existing code ...
+}
+```
+
+6) Routes: API endpoint and approval route
+```php:c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\routes\web.php
+Route::group(['prefix' => 'admin', 'middleware' => ['auth'] ], function () {
+
+    // ... existing routes ...
+
+    // INSERT: devis catalog API for element suggestions
+    Route::get('api/devis-items', 'DevisController@apiDevisItems')->name('api.devis.items');
+
+    // INSERT: médecin approval (apply reduction)
+    Route::post('devis/{devis}/approve', 'DevisController@approveReduction')->name('devis.approve');
+
+    // OPTIONAL: pending view for médecin
+    Route::get('devis/pending', 'DevisController@pending')->name('devis.pending');
+
+    // ... existing routes ...
+});
+```
+
+7) Enhance devis modal to show catalog suggestions and reduction UI
+```php:c:\Users\JUSTO TCHEUMANI\Desktop\CMCU\Nouveaudossier\Proj\cmcu\cmcuapp\resources\views\admin\devis\index.blade.php
+@extends('layouts.admin')
+
+@section('title', 'CMCU | Liste des devis')
+
+@section('content')
+
+<body>
+    {{--... existing code ...--}}
+
+    <div class="modal fade" id="imprimer_devis" tabindex="-1" aria-labelledby="imprimerDevisLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                {{-- ... existing header ... --}}
+
+                <div class="modal-body">
+                    <div>
+                        {{-- ... existing form start ... --}}
+                        <form id="devis_form" action="" method="POST">
+                            @csrf
+                            {{-- ... existing patient selection ... --}}
+
+                            {{-- INSERT: datalist for element suggestions --}}
+                            <datalist id="devis_items_datalist">
+                                {{-- will be populated by JS from API --}}
+                            </datalist>
+
+                            {{-- ... existing grid headers ... --}}
+                            <div class="row my-2 ajouter_ligne">
+                                <div class="col-sm-12 text-center">
+                                    <button type="button" class="btn text-primary btn-outline-info float-start">
+                                        <i class="fa fa-plus-circle"></i>
+                                    </button>
+                                    <p class="float-end total1 text-danger">Total 1: <strong>0</strong> FCFA</p>
+                                </div>
+                            </div>
+
+                            {{-- INSERT: médecin reduction controls (shown only to medecin) --}}
+                            @can('approve', \App\Models\Devi::class)
+                            <div class="row my-3">
+                                <div class="col-sm-4">
+                                    <label class="form-label">Réduction (%)</label>
+                                    <select id="reduction_percent" class="form-select">
+                                        <option value="0">0%</option>
+                                        <option value="5">5%</option>
+                                        <option value="10">10%</option>
+                                        <option value="15">15%</option>
+                                        <option value="20">20%</option>
+                                        <option value="25">25%</option>
+                                        <option value="30">30%</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-4 d-flex align-items-end">
+                                    <button type="button" id="apply_reduction_btn" class="btn btn-success">Appliquer réduction</button>
+                                </div>
+                                <div class="col-sm-4 d-flex align-items-end">
+                                    <div class="alert alert-info mb-0 w-100" id="reduction_result" style="display:none;"></div>
+                                </div>
+                            </div>
+                            @endcan
+
+                        </form>
+                    </div>
+                </div>
+
+               

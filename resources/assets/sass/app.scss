@@ -1,0 +1,76 @@
+// Use modern Sass @use instead of @import
+@use 'variables' as *;
+@use 'bootstrap/scss/bootstrap' as *;
+
+
+
+// Import Font Awesome with explicit font path so compiled CSS references /build/webfonts
+@use '@fortawesome/fontawesome-free/scss/fontawesome' with ($fa-font-path: '/build/webfonts');
+@use '@fortawesome/fontawesome-free/scss/regular';
+@use '@fortawesome/fontawesome-free/scss/solid';
+@use '@fortawesome/fontawesome-free/scss/brands';
+
+
+@import 'froala-editor/css/froala_editor.pkgd.min.css';
+
+// External CSS imports (Google Fonts allowed as pure CSS)
+@import url('https://fonts.googleapis.com/css?family=Nunito');
+
+
+
+
+@import "../../../public/admin/css/style4.css";
+@import "../../../public/admin/css/style.css";
+// @import "../../public/admin/css/bar.css";
+@import "../../../public/admin/css/widgets.css";
+@import "../../../public/admin/css/bootstrap.css";
+
+
+
+
+
+// Style rules
+
+// Fallback: Hide preloader if JS fails
+.se-pre-con {
+    animation: fadeOut 1s ease-in-out 2s forwards;
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+
+.navbar-laravel {
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+// Password toggle icon styles
+.password-container {
+  position: relative;
+
+  input[type="password"],
+  input[type="text"] {
+    padding-right: 40px; // Space for the icon
+  }
+
+  // .toggle-password {
+  //   position: absolute;
+  //   right: 10px;
+  //   top: 50%;
+  //   transform: translateY(-50%);
+  //   cursor: pointer;
+  //   color: #666;
+  //   font-size: 18px;
+  //   transition: color 0.3s ease;
+
+  //   &:hover {
+  //     color: #333;
+  //   }
+  // }
+}
+
+

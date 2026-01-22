@@ -1,0 +1,65 @@
+    /**
+     *Extract styles from HTML content and return separately
+     */
+
+    /** 
+    private function extractStyles($html)
+    * {
+    *    $styles = '';
+    *    $content = $html;
+    *    $links = '';
+
+        // 1. Extract raw <style> tags
+    *    if (preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $html, $matches)) {
+    *        foreach ($matches[1] as $styleContent) {
+    *            $styles .= $styleContent . "\n";
+    *        }
+    *        $content = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $content);
+    *    }
+
+        // 2. Extract HTML-encoded style blocks: &lt;style&gt;...&lt;/style&gt;
+    *    if (preg_match_all('/&lt;style[^&]*&gt;(.*?)&lt;\/style&gt;/is', $content, $encodedMatches)) {
+    *        foreach ($encodedMatches[1] as $encodedStyle) {
+    *            $styles .= html_entity_decode($encodedStyle, ENT_QUOTES | ENT_HTML5, 'UTF-8') . "\n";
+    *        }
+    *        $content = preg_replace('/&lt;style[^&]*&gt;.*?&lt;\/style&gt;/is', '', $content);
+    *    }
+
+        // 3. Extract <link> stylesheet tags (preserve them for injection)
+    *    if (preg_match_all('/<link[^>]*rel=["\']stylesheet["\'][^>]*>/i', $html, $linkMatches)) {
+    *        foreach ($linkMatches[0] as $linkTag) {
+                // Convert public_path() links to asset() links for web access
+    *            $linkTag = preg_replace(
+    *                '/href=["\']{{\\s*public_path\\(["\']([^"\']+)["\']\\)\\s*}}["\']/',
+    *                'href="{{ asset(\'$1\') }}"',
+    *                $linkTag
+    *            );
+    *            $links .= $linkTag . "\n";
+    *        }
+    *    }
+
+        // 4. Extract HTML-encoded link tags
+    *    if (preg_match_all('/&lt;link[^&]*rel=["\']stylesheet["\'][^&]*&gt;/i', $content, $encodedLinkMatches)) {
+    *        foreach ($encodedLinkMatches[0] as $encodedLink) {
+    *            $decodedLink = html_entity_decode($encodedLink, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    *            $decodedLink = preg_replace(
+    *                '/href=["\']{{\\s*public_path\\(["\']([^"\']+)["\']\\)\\s*}}["\']/',
+    *                'href="{{ asset(\'$1\') }}"',
+    *                $decodedLink
+    *            );
+    *            $links .= $decodedLink . "\n";
+    *        }
+    *    }
+
+        // Remove all stylesheet links from content (raw and encoded)
+    *    $content = preg_replace('/<link[^>]*rel=["\']stylesheet["\'][^>]*>/i', '', $content);
+    *    $content = preg_replace('/&lt;link[^&]*rel=["\']stylesheet["\'][^&]*&gt;/i', '', $content);
+
+    *    return [
+    *        'styles' => $styles,
+    *        'links' => $links, // NEW: preserve link tags
+    *        'content' => $content
+    *    ];
+    *}
+
+*/
