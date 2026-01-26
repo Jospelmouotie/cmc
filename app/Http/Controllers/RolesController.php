@@ -28,21 +28,21 @@ class RolesController extends Controller
         $role = new Role();
         $role->name = $request->name;
         $role->save();
-        Cache::tags(['roles'])->flush();
+        Cache::flush();
         return redirect()->route('roles.index')->with('success',"Votre nouveau role a bien été ajouté");
     }
 
     public function show($id)
     {
         $role = Role::findOrFail($id);
-        return view('admin.roles.show', compact('role')); 
+        return view('admin.roles.show', compact('role'));
     }
 
     public function edit($id)
     {
         $role = Role::findOrFail($id);
-        Cache::tags(['roles'])->flush();
-        return view('admin.roles.edit', compact('role')); 
+        Cache::flush();
+        return view('admin.roles.edit', compact('role'));
     }
 
     public function update(Request $request, $id)
@@ -53,8 +53,8 @@ class RolesController extends Controller
         $role = Role::findOrFail($id);
         $role->name = $request->name;
         $role->save();
-        
-        Cache::tags(['roles', 'users'])->flush();
+
+        Cache::flush();
         return redirect()->route('roles.index')->with('success',"Le role a bien été modifier");
     }
 
@@ -62,8 +62,8 @@ class RolesController extends Controller
     {
         $role = Role::find($id);
         $role->delete();
-        
-        Cache::tags(['roles', 'users'])->flush();
+
+        Cache::flush();
         return redirect()->route('roles.index')->with('success', 'Le role a bien été supprimé');
     }
 }

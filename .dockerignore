@@ -1,0 +1,10 @@
+# .dockerignore
+node_modules
+npm-debug.log
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/cache/*
+storage/logs/*
+.git
+.env
+bootstrap/cache/*.php

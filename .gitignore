@@ -17,3 +17,8 @@ rr
 .rr.yaml
 database/database.sqlite
 /node_modules
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/framework/cache/*
+/bootstrap/cache/*.php
+!/bootstrap/cache/.gitignore

@@ -182,7 +182,7 @@ return [
         Spatie\GoogleCalendar\GoogleCalendarServiceProvider::class,
         Spatie\Html\HtmlServiceProvider::class,
         Spatie\LaravelImageOptimizer\ImageOptimizerServiceProvider::class,
-        Barryvdh\LaravelIdeHelper\IdeHelperServiceProvider::class,
+       // Barryvdh\LaravelIdeHelper\IdeHelperServiceProvider::class,
 
         /*
          * Application Service Providers...
