@@ -31,5 +31,11 @@ class AdminUserSeeder extends Seeder
                 'updated_at'     => now(),
             ]
         );
+        DB::table('licences')->insert([
+    'active_date' => now(),
+    'expiration_date' => now()->addYears(10),
+    'is_active' => true,
+    // ajoute les autres colonnes requises par ta table
+]);
     }
 }

@@ -1,25 +1,16 @@
 <?php
-
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class UsersTableSeeder extends Seeder
 {
-
-    /**
-     * Auto generated seed file
-     *
-     * @return void
-     */
     public function run()
     {
+        DB::table('users')->delete();
 
-
-        \DB::table('users')->delete();
-
-        \DB::table('users')->insert(array (
-            0 =>
-            array (
-                'id' => '1',
+        DB::table('users')->insert(array (
+            0 => array (
+                'id' => 1,
                 'name' => 'KOUAMO',
                 'prenom' => 'Stephane',
                 'login' => 'Administrateur',
@@ -33,11 +24,10 @@ class UsersTableSeeder extends Seeder
                 'remember_token' => '5v6uoTO8xdDC7uNuZqIQLS0ItzuFDFIPB2aDaO4mHXm4af9w7TCjTiScQ3YP',
                 'created_at' => '2019-09-26 16:48:39',
                 'updated_at' => '2019-09-26 16:48:39',
-                'role_id' => '1',
+                'role_id' => 1,
             ),
-            1 =>
-            array (
-                'id' => '2',
+            1 => array (
+                'id' => 2,
                 'name' => 'MOUSSINGA',
                 'prenom' => 'GENEVIEVE',
                 'login' => 'GENEVIEVE',
@@ -51,11 +41,10 @@ class UsersTableSeeder extends Seeder
                 'remember_token' => NULL,
                 'created_at' => '2019-09-26 16:48:40',
                 'updated_at' => '2019-09-26 16:48:40',
-                'role_id' => '8',
+                'role_id' => 8,
             ),
-        =>
-            array (
-                'id' => '3',
+            2 => array (
+                'id' => 3,
                 'name' => 'TOMDIO',
                 'prenom' => 'PRISCA',
                 'login' => 'TOMDIO',
@@ -69,7 +58,7 @@ class UsersTableSeeder extends Seeder
                 'remember_token' => 'YD0Uj25lKDk3ux5OgKFbQ0nb9qjSwHgbjZNG1mpDJoPYe21m1Qz8sINXzYRt',
                 'created_at' => '2019-09-26 16:48:40',
                 'updated_at' => '2019-09-26 16:48:40',
-                'role_id' => '4',
+                'role_id' => 4,
             ),
             3 =>
             array (

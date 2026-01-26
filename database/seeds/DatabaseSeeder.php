@@ -57,5 +57,7 @@ class DatabaseSeeder extends Seeder
         $this->call(TraitementHospitalisationsTableSeeder::class);
         $this->call(UserRoleTableSeeder::class);
         $this->call(VisitePreanesthesiquesTableSeeder::class);
+        // Dans DatabaseSeeder.php ou un seeder dédié
+
     }
 }
