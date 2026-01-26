@@ -6,7 +6,7 @@ use App\Models\User;
 use App\Models\Devi;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
-class Devispolicy
+class DevisPolicy
 {
     use HandlesAuthorization;
 
