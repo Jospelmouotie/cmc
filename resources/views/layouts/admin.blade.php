@@ -83,6 +83,21 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             /* animation: slideInRight 0.4s ease-out; */
         }
+
+        
+        /* Animation for NOUVEAU badge */
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
     </style>
 
 
@@ -326,39 +341,39 @@ function initDataTables() {
     });
 
     // Mode paiement change handler
-    $('#mode_paiement').on('change', function(event) {
-        var val = $(this).val();
+    // $('#mode_paiement').on('change', function(event) {
+    //     var val = $(this).val();
         
-        if (val === 'chèque' && !$('._cheque').length) {
-            $('.m_paiement').after(
-                '<div class="form-group _cheque">' +
-                    '<label for="num_cheque" class="col-form-label text-md-right">Numéro du chèque</label>' +
-                    '<input name="num_cheque" id="num_cheque" class="form-control" type="text">' +
-                '</div>' +
-                '<div class="form-group _cheque">' +
-                    '<label for="emetteur_cheque" class="col-form-label text-md-right">Émetteur du chèque</label>' +
-                    '<input name="emetteur_cheque" id="emetteur_cheque" class="form-control" type="text">' +
-                '</div>' +
-                '<div class="form-group _cheque">' +
-                    '<label for="banque_cheque" class="col-form-label text-md-right">Banque</label>' +
-                    '<input name="banque_cheque" id="banque_cheque" class="form-control" type="text">' +
-                '</div>'
-            );
-        } else {
-            $("._cheque").remove();
-        }
+    //     if (val === 'chèque' && !$('._cheque').length) {
+    //         $('.m_paiement').after(
+    //             '<div class="form-group _cheque">' +
+    //                 '<label for="num_cheque" class="col-form-label text-md-right">Numéro du chèque</label>' +
+    //                 '<input name="num_cheque" id="num_cheque" class="form-control" type="text">' +
+    //             '</div>' +
+    //             '<div class="form-group _cheque">' +
+    //                 '<label for="emetteur_cheque" class="col-form-label text-md-right">Émetteur du chèque</label>' +
+    //                 '<input name="emetteur_cheque" id="emetteur_cheque" class="form-control" type="text">' +
+    //             '</div>' +
+    //             '<div class="form-group _cheque">' +
+    //                 '<label for="banque_cheque" class="col-form-label text-md-right">Banque</label>' +
+    //                 '<input name="banque_cheque" id="banque_cheque" class="form-control" type="text">' +
+    //             '</div>'
+    //         );
+    //     } else {
+    //         $("._cheque").remove();
+    //     }
         
-        if (val === 'bon de prise en charge' && !$('._bpc').length) {
-            $('.m_paiement').after(
-                '<div class="form-group _bpc">' +
-                    '<label for="emetteur_bpc" class="col-form-label text-md-right">Émetteur</label>' +
-                    '<input name="emetteur_bpc" id="emetteur_bpc" class="form-control" type="text">' +
-                '</div>'
-            );
-        } else {
-            $("._bpc").remove();
-        }
-    });
+    //     if (val === 'bon de prise en charge' && !$('._bpc').length) {
+    //         $('.m_paiement').after(
+    //             '<div class="form-group _bpc">' +
+    //                 '<label for="emetteur_bpc" class="col-form-label text-md-right">Émetteur</label>' +
+    //                 '<input name="emetteur_bpc" id="emetteur_bpc" class="form-control" type="text">' +
+    //             '</div>'
+    //         );
+    //     } else {
+    //         $("._bpc").remove();
+    //     }
+    // });
 }
 </script>
 
@@ -396,6 +411,7 @@ function initDataTables() {
     @endif
 @endunless
 
+@stack('scripts')
 </body>
 </html> 
 

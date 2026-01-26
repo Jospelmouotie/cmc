@@ -28,7 +28,6 @@
 
     /* Table Styling */
     .table {
-        /* border-collapse: separate; */
         border-collapse: collapse;
         border-spacing: 0;
         margin-bottom: 2rem;
@@ -55,9 +54,19 @@
         border: 1px solid #dee2e6;
     }
 
-    /* Zebra striping for readability */
-    .table tbody tr:nth-child(odd):not(.table-secondary):not(.table-primary) {
+    /* Zebra striping */
+    .table tbody tr:nth-child(odd):not(.table-secondary):not(.table-primary):not(.section-header) {
         background-color: #f9f9f9;
+    }
+
+    /* Section headers */
+    .section-header td {
+        background-color: #e3f2fd !important;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 14px;
+        padding: 10px 14px !important;
     }
 
     /* Section totals */
@@ -76,7 +85,6 @@
         border-top: 2px solid #4463dc;
     }
 
-    /* Highlight TOTAL row */
     .table-primary h5 {
         margin: 0;
         font-size: 1rem;
@@ -84,7 +92,6 @@
         color: #4463dc;
     }
 
-    /* Alignment helpers */
     .text-right {
         text-align: right !important;
     }
@@ -112,53 +119,32 @@
         border-top: 1px solid #ccc;
     }
 
-    .row {
-        margin-bottom: 1rem;
-    }
-
     u {
         font-weight: 500;
         font-size: 14px;
     }
-
-    @media print {
-        .footer {
-            position: absolute;
-            bottom: 0;
-        }
-    }
 </style>
-
-
 
 <div class="container-fluid">
     <!-- Header --> 
     <table width="100%" style="margin-bottom: 10px;">
         <tr>
-            <!-- Logo -->
             <td width="20%" valign="top">
                 <img class="logo" src="{{ public_path('admin/images/logo.jpg') }}" >
             </td>
-
-            <!-- Description (right aligned, same level as logo) -->
             <td width="80%" align="right" valign="top">
                 <p><b>CENTRE MEDICO-CHIRURGICAL D'UROLOGIE</b></p>
                 <p>007/10/D/ONMC</p>
                 <p>VALLEE MANGA BELL DOUALA-BALI</p>
                 <p>Arrêté N° 3203/A/MINSANTE/SG/DOSTS/SDOS/SFSP</p>
-                <small>
-                    TEL:(+237) 233 423 389 / 674 068 988 / 698 873 945
-                </small><br>
+                <small>TEL:(+237) 233 423 389 / 674 068 988 / 698 873 945</small><br>
                 <small>Email : info@cmcu-cm.com</small><br>
-                <small>
-                    www.cmcu-cm.com / cmcu_cmcu@yahoo.fr
-                </small>
+                <small>www.cmcu-cm.com / cmcu_cmcu@yahoo.fr</small>
             </td>
         </tr>
     </table>
 
     <hr>
-
 
     <!-- Patient & Date -->
     <div class="row">
@@ -166,14 +152,12 @@
             @php
                 $patientName = isset($nomPatient) ? $nomPatient : '';
                 if (!empty($nomPatient)) {
-                    // If an id/code was passed, try to resolve the patient model
                     if (is_numeric($nomPatient)) {
                         $patient = \App\Models\Patient::find((int) $nomPatient);
                         if ($patient) {
                             $patientName = ($patient->name ?? '') . ' ' . ($patient->prenom ?? '');
                         }
                     } elseif (is_object($nomPatient)) {
-                        // If an object was passed, try to read name fields
                         $patientName = ($nomPatient->name ?? '') . ' ' . ($nomPatient->prenom ?? '');
                     }
                 }
@@ -202,21 +186,83 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($ligneDevis as $ligneDevi)
-                <tr>
-                    <td>{{ $ligneDevi->element }}</td>
-                    <td class="text-center">{{ $ligneDevi->quantite }}</td>
-                    <td class="text-right">{{ number_format($ligneDevi->prix_u, 0, ',', ' ') }}</td>
-                    <td class="text-right">{{ number_format($ligneDevi->prix, 0, ',', ' ') }}</td>
-                </tr>
-            @endforeach
+            @php
+                $proceduresTotal = 0;
+                $productsTotal = 0;
+                $procedures = [];
+                $products = [];
+                
+                // Separate procedures and products
+                foreach($ligneDevis as $ligne) {
+                    if ($ligne->type === 'procedure') {
+                        $procedures[] = $ligne;
+                        $proceduresTotal += $ligne->prix;
+                    } else {
+                        $products[] = $ligne;
+                        $productsTotal += $ligne->prix;
+                    }
+                }
+            @endphp
 
+            {{-- PROCEDURES SECTION --}}
+            @if(count($procedures) > 0)
+                <tr class="section-header">
+                    <td colspan="4"><b>PROCÉDURES MÉDICALES</b></td>
+                </tr>
+                @foreach($procedures as $ligne)
+                    <tr>
+                        <td>{{ $ligne->element }}</td>
+                        <td class="text-center">{{ $ligne->quantite }}</td>
+                        <td class="text-right">{{ number_format($ligne->prix_u, 0, ',', ' ') }}</td>
+                        <td class="text-right">{{ number_format($ligne->quantite * $ligne->prix_u, 0, ',', ' ') }}</td>
+                    </tr>
+                @endforeach
+
+                <tr class="table-secondary">
+                    <td colspan="3" class="text-center"><b>SOUS-TOTAL ELEMENTS</b></td>
+                    <td class="text-right"><b>{{ number_format($proceduresTotal, 0, ',', ' ') }}</b></td>
+                </tr>
+            @endif
+
+            {{-- PRODUCTS SECTION --}}
+            @if(count($products) > 0)
+                <tr class="section-header">
+                    <td colspan="4"><b>PRODUITS ET MATÉRIELS</b></td>
+                </tr>
+                @foreach($products as $ligne)
+                    <tr>
+                        <td>
+                            {{ $ligne->element }}
+                            @if($ligne->type === 'medication')
+                                <small class="text-muted">(Médicament)</small>
+                            @elseif($ligne->type === 'anesthesie')
+                                <small class="text-muted">(Anesthésie)</small>
+                            @elseif($ligne->type === 'material')
+                                <small class="text-muted">(Matériel)</small>
+                            @endif
+                        </td>
+                        <td class="text-center">{{ $ligne->quantite }}</td>
+                        <td class="text-right">{{ number_format($ligne->prix_u, 0, ',', ' ') }}</td>
+                        <td class="text-right">{{ number_format($ligne->quantite * $ligne->prix_u, 0, ',', ' ') }}</td>
+                    </tr>
+                @endforeach
+
+                <tr class="table-secondary">
+                    <td colspan="3" class="text-center"><b>SOUS-TOTAL PRODUITS</b></td>
+                    <td class="text-right"><b>{{ number_format($productsTotal, 0, ',', ' ') }}</b></td>
+                </tr>
+            @endif
+
+            {{-- TOTAL SECTION 1 --}}
             <tr class="table-secondary">
-                <td colspan="3" class="text-center"><b>TOTAL 1</b></td>
+                <td colspan="3" class="text-center"><b>TOTAL 1 (PROCÉDURES + PRODUITS)</b></td>
                 <td class="text-right"><b>{{ number_format($devis->total1, 0, ',', ' ') }}</b></td>
             </tr>
 
-            <tr><td colspan="4"><b>HOSPITALISATION {{ $devis->nbr_chambre }} JOUR(S)</b></td></tr>
+            {{-- HOSPITALIZATION SECTION --}}
+            <tr class="section-header">
+                <td colspan="4"><b>HOSPITALISATION {{ $devis->nbr_chambre }} JOUR(S)</b></td>
+            </tr>
             <tr>
                 <td>CHAMBRE</td>
                 <td class="text-center">{{ $devis->nbr_chambre }}</td>
@@ -237,12 +283,14 @@
             </tr>
 
             <tr class="table-secondary">
-                <td colspan="3" class="text-center"><b>TOTAL 2</b></td>
+                <td colspan="3" class="text-center"><b>TOTAL 2 (HOSPITALISATION)</b></td>
                 <td class="text-right"><b>{{ number_format($devis->total2, 0, ',', ' ') }}</b></td>
             </tr>
+
+            {{-- GRAND TOTAL --}}
             <tr></tr>
             <tr class="table-primary">
-                <td colspan="3" class="text-center"><h5><b>TOTAL</b></h5></td>
+                <td colspan="3" class="text-center"><h5><b>TOTAL GÉNÉRAL</b></h5></td>
                 <td class="text-right"><h5><b>{{ number_format($devis->total1 + $devis->total2, 0, ',', ' ') }}</b></h5></td>
             </tr>
         </tbody>
@@ -256,19 +304,13 @@
     <div class="row">
         <div class="col-md-6 text-left"><u>LE MEDECIN TRAITANT:</u></div>
         <div class="col-md-6 text-center"><u>LA DIRECTION:</u></div>
-        <br><br>
     </div>
 
-    
     <!-- Footer -->
     <footer class="footer text-center">
         <small>
-            <b>N.B :</b> <i>Il est à noter que ceci n’est qu’une estimation du coût de l’intervention chirurgicale et de l’hospitalisation.
+            <b>N.B :</b> <i>Il est à noter que ceci n'est qu'une estimation du coût de l'intervention chirurgicale et de l'hospitalisation.
             Nous ne sommes pas tenus responsables des imprévus, ni des examens de laboratoire que vous pourriez effectuer éventuellement. Merci.</i>
         </small>
     </footer>
 </div>
-
-
-
-

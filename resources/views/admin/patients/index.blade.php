@@ -43,7 +43,12 @@
 
                             @foreach($patients as $patient)
                                 <tr>
-                                    <td>CMCU - {{ $patient->numero_dossier }}</td>
+                                    <td>
+                                        CMCU - {{ $patient->numero_dossier }}
+                                        @if($patient->isNew())
+                                            <span class="badge bg-success ms-2 animate-pulse">NOUVEAU</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $patient->name }}</td>
                                     <td>{{ $patient->prenom }}</td>
                                     <td>{{ $patient->prise_en_charge }}</td>

@@ -5,46 +5,259 @@
 @section('content')
 
 <body>
-    {{--<div class="se-pre-con"></div>--}}
     <div class="wrapper">
         @include('partials.side_bar')
-
-        <!-- Page Content Holder -->
         @include('partials.header')
-        <!--// top-bar -->
-        @can('create', \App\Models\Patient::class)
-        <div class="container">
-            <h1 class="text-center">LISTE DES DEVIS</h1>
-        </div>
-        <hr>
-        <div class="container pt-3">
-            <div class="row">
-                <div class="col-sm-12 panneau_d_affichage">
+
+        @can('view', \App\Models\Devi::class)
+        <div class="container-fluid px-4 py-4">
+            <h1 class="text-center mb-4">LISTE DES DEVIS</h1>
+            
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-white bg-secondary">
+                        <div class="card-body">
+                            <h6>Brouillons</h6>
+                            <h3>{{ $devis->where('statut', 'brouillon')->count() }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-warning">
+                        <div class="card-body">
+                            <h6>En attente</h6>
+                            <h3>{{ $devis->where('statut', 'en_attente')->count() }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-success">
+                        <div class="card-body">
+                            <h6>Validés</h6>
+                            <h3>{{ $devis->where('statut', 'valide')->count() }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-danger">
+                        <div class="card-body">
+                            <h6>Refusés</h6>
+                            <h3>{{ $devis->where('statut', 'refuse')->count() }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Devis Table -->
+            <div class="card shadow-sm">
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <!--  -->
-                        <table id="myTable" class="table table-bordered table-hover w-100">
-                            <thead>
+                        <table id="devisTable" class="table table-hover mb-0">
+                            <thead class="bg-light">
                                 <tr>
-                                    <th>NOM</th>
-                                    <th>ACTION</th>
+                                    <th>Code</th>
+                                    <th>Patient</th>
+                                    <th>Médecin</th>
+                                    <th>Montant</th>
+                                    <th>Réduction</th>
+                                    <th>Statut</th>
+                                    <th>Date</th>
+                                    <th class="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($devis as $devi)
                                 <tr>
-                                    <td>{{ $devi->nom}}</td>
+                                    <td><strong>{{ $devi->code }}</strong></td>
                                     <td>
-                                        @can('print', \App\Models\Devi::class)
+                                        @if($devi->patient)
+                                        {{ $devi->patient->name }} {{ $devi->patient->prenom }}
+                                        @else
+                                        <span class="text-muted">N/A</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($devi->medecin)
+                                        Dr. {{ $devi->medecin->name }}
+                                       
+                                        
+                                        <!-- helps gestionnaires identify devis that can't be sent for validation -->
+                                        @elseif(!$devi->medecin_id && $devi->statut == 'brouillon')
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-exclamation-triangle"></i> Pas de médecin assigné
+                                            </span>
+                                        @else
+                                            <span class="text-muted">Non assigné</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>{{ number_format($devi->montant_apres_reduction, 0, ',', ' ') }} FCFA</strong>
+                                        </div>
+                                        @if($devi->pourcentage_reduction > 0)
+                                        <small class="text-muted">
+                                            <del>{{ number_format($devi->montant_avant_reduction, 0, ',', ' ') }} FCFA</del>
+                                        </small>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($devi->pourcentage_reduction > 0)
+                                        <span class="badge bg-info">-{{ $devi->pourcentage_reduction }}%</span>
+                                        @else
+                                        <span class="text-muted">Aucune</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($devi->statut == 'brouillon')
+                                        <span class="badge bg-secondary">Brouillon</span>
+                                        @elseif($devi->statut == 'en_attente')
+                                        <span class="badge bg-warning">En attente</span>
+                                        @elseif($devi->statut == 'valide')
+                                        <span class="badge bg-success">Validé</span>
+                                        @elseif($devi->statut == 'refuse')
+                                            <span class="badge bg-danger">Refusé</span>
+                                            @if($devi->commentaire_medecin)
+                                                <i class="fas fa-comment-dots text-danger ms-1" 
+                                                title="Raison: {{ $devi->commentaire_medecin }}" 
+                                                data-bs-toggle="tooltip"></i>
+                                            @endif
+                                        @endif
+                                    </td>
+                                    <td><small>{{ $devi->created_at->format('d/m/Y') }}</small></td>
+                                    
+                                    <td class="text-center">
+                                        <!-- View/Edit button (Gestionnaire) -->
+                                        @can('update', \App\Models\Devi::class)
+                                            @if($devi->statut == 'brouillon' || $devi->statut == 'refuse')
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-primary"
+                                                        data-devi='@json($devi)' 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#devisModal"
+                                                        data-mode="edit"
+                                                        title="Modifier">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                            @endif
+                                            
+                                            <!-- Send for validation -->
+                                            @if($devi->statut == 'brouillon')
+                                                <form action="{{ route('devis.envoyer_validation', $devi->id) }}" method="POST" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Envoyer pour validation">
+                                                        <i class="fas fa-paper-plane"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
+                                            
+                                            <!-- Cancel send (for en_attente status) -->
+                                            @if($devi->statut == 'en_attente' && $devi->user_id == Auth::id())
+                                                <form action="{{ route('devis.annuler_envoi', $devi->id) }}" 
+                                                    method="POST" 
+                                                    class="d-inline"
+                                                    onsubmit="return confirm('Voulez-vous annuler l\'envoi de ce devis? Il reviendra en brouillon.');">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Annuler l'envoi">
+                                                        <i class="fas fa-undo-alt"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
+                                            
+                                            <!-- Cancel refusal (for refuse status) - Return to brouillon for editing -->
+                                            @if($devi->statut == 'refuse' && $devi->user_id == Auth::id())
+                                                <form action="{{ route('devis.annuler_refus', $devi->id) }}" 
+                                                    method="POST" 
+                                                    class="d-inline"
+                                                    onsubmit="return confirm('Voulez-vous réinitialiser ce devis refusé? Il reviendra en brouillon pour modification.');">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm btn-outline-info" title="Réinitialiser le devis refusé">
+                                                        <i class="fas fa-sync-alt"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        @endcan
+
+                                        <!-- Undo validation (Doctor) -->
+                                        @if($devi->statut == 'valide' && $devi->medecin_id == Auth::id())
+                                            <form action="{{ route('devis.annuler_validation', $devi->id) }}" method="POST" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-warning" title="Annuler validation">
+                                                    <i class="fas fa-undo"></i>
+                                                </button>
+                                            </form>
+                                        @endif
+                                        
+                                        <!-- Doctor actions -->
+                                        @can('validate', \App\Models\Devi::class)
+                                            @if($devi->statut == 'en_attente' && $devi->medecin_id == Auth::id())
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-info"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#reductionModal"
+                                                        data-devi-id="{{ $devi->id }}"
+                                                        data-montant="{{ $devi->montant_avant_reduction }}"
+                                                        title="Appliquer réduction">
+                                                    <i class="fas fa-percent"></i>
+                                                </button>
+                                                
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-success"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#validerModal"
+                                                        data-devi-id="{{ $devi->id }}"
+                                                        title="Valider">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#refuserModal"
+                                                        data-devi-id="{{ $devi->id }}"
+                                                        title="Refuser">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            @endif
+                                        @endcan
+
+                                        <!-- View button (Always visible) -->
                                         <button type="button" 
-                                        data-devi='@json($devi)' 
-                                        data-champ_patient="" 
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#imprimer_devis" 
-                                        data-title="Impression devis ..." 
-                                        data-texte="Vous pouvez effectuez des modifications si nécessaire." 
-                                        class="btn btn-primary btn-sm me-1" 
-                                        title="Attribuer le devis à un patient">
-                                            <i class="fas fa-eye"></i></button>
+                                                class="btn btn-sm btn-outline-info view-devis-btn"
+                                                data-devi='@json($devi)'
+                                                title="Voir">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+
+                                        <!-- Print button -->
+                                        @can('print', \App\Models\Devi::class)
+                                            @if($devi->statut == 'valide')
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-secondary"
+                                                        data-devi='@json($devi)' 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#devisModal"
+                                                        data-mode="print"
+                                                        title="Imprimer">
+                                                    <i class="fas fa-print"></i>
+                                                </button>
+                                            @endif
+                                        @endcan
+
+                                        <!-- Delete button -->
+                                        @can('delete', \App\Models\Devi::class)
+                                            @if($devi->statut == 'brouillon' || $devi->statut == 'refuse')
+                                                <form action="{{ route('devis.destroy', $devi->id) }}" 
+                                                    method="POST" 
+                                                    class="d-inline" 
+                                                    onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce devis ?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                            @endif
                                         @endcan
                                     </td>
                                 </tr>
@@ -53,510 +266,339 @@
                         </table>
                     </div>
                 </div>
+                <div class="card-footer">
+                    {{ $devis->links() }}
+                </div>
             </div>
         </div>
+
         @can('create', \App\Models\Devi::class)
         <div class="text-center table_link_right">
-            <button type="button" data-bs-toggle="modal" data-bs-target="#imprimer_devis" data-title="Nouveau devis ..." data-texte="" class="btn btn-primary me-1" title="Vous allez ajouter un nouveau devis" data-champ_patient="d-none">Nouveau</button>
+            <button type="button" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#devisModal" 
+                    data-mode="create"
+                    class="btn btn-primary me-1" 
+                    title="Créer un nouveau devis">
+                <i class="fas fa-plus me-2"></i>Nouveau Devis
+            </button>
         </div>
         @endcan
 
-    </div>
-    <!-- The Modal -->
-    <div class="modal fade" id="imprimer_devis" tabindex="-1" aria-labelledby="imprimerDevisLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <!-- Modal Header -->
-                <div class="modal-header">
-                    <h4 class="modal-title" id="imprimerDevisLabel"></h4>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
+        
+        <!-- Main Devis Modal (Create/Edit/Print) -->
+        @include('admin.devis.modal')
+        
+        <!-- Reduction Modal (Doctor) -->
+        @include('admin.devis.modals.reduction')
+        
+        <!-- Validation Modal (Doctor) -->
+        @include('admin.devis.modals.validation')
+        
+        <!-- Refusal Modal (Doctor) -->
+        @include('admin.devis.modals.refusal')
 
-
-                <!-- Modal body -->
-                <div class="modal-body">
-                    <div>
-                        <p class="text-success description my-2"></p>
-                        <form id="devis_form" action="" method="POST">
-                            @csrf
-                            <div class="row">
-                                <div class="col-sm-4 champ_patient">
-                                    <label for="patient" class="form-label">Nom du patient :</label>
-                                    <select class="form-select" id="patient" name="patient">
-                                        @foreach($patients as $patient)
-                                        <option value="{{ $patient->id }}">{{ $patient->name.' '.$patient->prenom }}</option>
-                                        @endforeach
-                                    </select>
-                                    <input type="text" class="form-control d-none" id="patient_input">
-                                    <br>
-                                </div>
-                                <div class="col-sm-4 d-flex align-items-center">
-                                    <div class="form-check ms-4">
-                                        <input class="form-check-input" type="checkbox" id="saisir_nom" value="">
-                                        <label class="form-check-label" for="saisir_nom">Saisir le nom</label>
-                                    </div>
-                                </div>
-                                <div class="col-sm-4"></div>
-                            </div>
-                            <div class="row nom_devis">
-                                @can('update', \App\Models\Devi::class)
-                                <div class="col-4 mb-3">
-                                    <label for="nom_devis" class="form-label">Devis de :</label>
-                                    <input type="text" name="nom_devis" class="form-control" id="nom_devis" required>
-                                </div>
-                                <div class="col-4 mb-3">
-                                    <label for="code_devis" class="form-label">Code :</label>
-                                    <input type="text" name="code_devis" class="form-control" id="code_devis" required>
-                                </div>
-                                <div class="col-4 mb-3">
-                                    <label for="acces_devis" class="form-label">Type :</label>
-                                    <select class="form-select" id="acces_devis" name="acces_devis">
-                                        <option value="acte">Acte</option>
-                                        <option value="bloc">Bloc</option>
-                                    </select>
-                                </div>
-                                @elsecan('print', \App\Models\Devi::class)
-                                <div class="col-8 mb-3">
-                                    <label for="nom_devis" class="form-label">Devis de :</label>
-                                    <input type="text" name="nom_devis" class="form-control" id="nom_devis" required>
-                                </div>
-                                <div class="col-4 mb-3">
-                                    <label for="code_devis" class="form-label">Code :</label>
-                                    <input type="text" name="code_devis" class="form-control" id="code_devis" required>
-                                </div>
-                                @endcan
-                            </div>
-                            <div class="container">
-                                <div class="row my-2">
-                                    <div class="col-sm-1 text-center" style="background-color:lavender;">
-                                        <small>#</small>
-                                    </div>
-                                    <div class="col-sm-4" style="background-color:lavenderblush;">
-                                        <strong>Elément</strong>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavender;">
-                                        <strong>Quantité</strong>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavenderblush;">
-                                        <strong>Prix U.</strong>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavender;">
-                                        <strong>Prix</strong>
-                                    </div>
-                                    <div class="col-sm-1 text-center p-0" style="background-color:lavenderblush;">
-                                        <strong>Sup</strong>
-                                    </div>
-                                </div>
-                                <div class="row my-2 ajouter_ligne">
-                                    <div class="col-sm-12 text-center">
-                                        <button type="button" class="btn text-primary btn-outline-info float-start">
-                                            <i class="fa fa-plus-circle"></i>
-                                        </button>
-                                        <p class="float-end total1 text-danger">Total 1: <strong>0</strong> FCFA</p>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-12 ps-0 mt-2">
-                                        <div class="form-check ms-4">
-                                            <input class="form-check-input" type="checkbox" id="hospitalisation" value="">
-                                            <label class="form-check-label text-primary" for="hospitalisation">Hospitalisation</label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="row my-2 hospitalisation d-none">
-                                    <div class="col-sm-1 justify-content-center d-flex align-items-center" style="background-color:lavender;">
-                                        <small>1</small>
-                                    </div>
-                                    <div class="col-sm-4" style="background-color:lavenderblush;">
-                                        <input type="text" name="" class="form-control element" value="Chambre" readonly>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavender;">
-                                        <input type="number" name="nbr_chambre" id="nbr_chambre" class="form-control" value=0>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavenderblush;">
-                                        <input type="number" name="pu_chambre" class="form-control" id="pu_chambre" value=30000 required>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavender;">
-                                        <input type="number" id="chambre" name="chambre" value=0 class="form-control">
-                                    </div>
-                                    <div class="col-sm-1 p-0 d-flex align-items-center" style="background-color:lavenderblush;">
-                                       
-                                    </div>
-                                </div>
-                                <div class="row hospitalisation d-none my-2">
-                                    <div class="col-sm-1 justify-content-center d-flex align-items-center" style="background-color:lavender;">
-                                        <small>2</small>
-                                    </div> 
-                                    <div class="col-sm-4" style="background-color:lavenderblush;">
-                                        <input type="text" name="" class="form-control element" readonly value="Visite">
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavender;">
-                                        <input type="number" id="nbr_visite" name="nbr_visite" class="form-control" value=0>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavenderblush;">
-                                        <input type="number" name="pu_visite" class="form-control" id="pu_visite" value=10000 required>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavender;">
-                                        <input type="number" name="visite" id="visite" value=0 class="form-control">
-                                    </div>
-                                    <div class="col-sm-1 p-0 d-flex align-items-center" style="background-color:lavenderblush;">
-                                       
-                                    </div>
-                                </div>
-                                <div class="row hospitalisation d-none my-2">
-                                    <div class="col-sm-1 justify-content-center d-flex align-items-center" style="background-color:lavender;">
-                                        <small>3</small>
-                                    </div>
-                                    <div class="col-sm-4" style="background-color:lavenderblush;">
-                                        <input type="text" name="" class="form-control element" value="AMI-JOUR (750*12)" readonly>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavender;">
-                                        <input type="number" id="nbr_ami_jour" name="nbr_ami_jour" class="form-control" value=0>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavenderblush;">
-                                        <input type="number" name="pu_ami_jour" class="form-control" id="pu_ami_jour" value=9000 required>
-                                    </div>
-                                    <div class="col-sm-2" style="background-color:lavender;">
-                                        <input type="number" id="ami_jour" name="ami_jour" value=0 class="form-control">
-                                    </div>
-                                    <div class="col-sm-1 p-0 d-flex align-items-center" style="background-color:lavenderblush;">
-                                        
-                                    </div>
-                                </div>
-                                <div class="row hospitalisation d-none my-2">
-                                    <div class="col-sm-12 d-flex align-items-center justify-content-end">
-                                        <p class="float-end total2 text-danger">Total 2: <strong>0</strong> FCFA</p>
-                                    </div>
-                                </div>
-                                <div class="row mt-3">
-                                    <div class="col-12">
-                                        <p class="float-end total">Total : <strong>0</strong> FCFA</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
+        <!-- View Devis Modal -->
+        <div class="modal fade" id="viewDevisModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Détails du Devis</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-                </div>
-
-                <!-- Modal footer -->
-                <div class="modal-footer px-0">
-                    <div class="col-12">
-                        @can('update', \App\Models\Devi::class)
-                        <button type="submit" class="btn btn-info devis_save" data-bs-dismiss="modal">Enregistrer</button>
-                        @endcan
-                        <button type="button" class="btn btn-danger float-end" data-bs-dismiss="modal">Annuler</button>
-                        <button type="submit" class="btn btn-primary float-end mx-3 devis_export" data-bs-dismiss="modal">Exporter</button>
+                    <div class="modal-body" id="viewDevisContent">
+                    <!-- Content loaded via JavaScript -->
                     </div>
                 </div>
             </div>
         </div>
+        @endcan
     </div>
-    @endcan
+
+    
 </body>
-@endsection
 
-@section('script')
+
+
+@push('scripts')
 <script src="{{ asset('admin/js/devis/convert_chiffre_lettre.js') }}"></script>
+<script src="{{ asset('admin/js/devis/devis.js') }}"></script>
+
 <script>
-    /**
-     * Devis-specific JavaScript - runs after admin.blade.php has initialized DataTables
-     */
-    document.addEventListener('DOMContentLoaded', function () {
-        // Wait for jQuery to be available
-        if (!window.jQuery) {
-            console.error('jQuery is not available for devis page scripts.');
-            return;
+console.log('Loading view devis functionality...');
+
+// Define viewDevis function in GLOBAL scope
+window.viewDevis = function(devi) {
+    console.log('viewDevis called with:', devi);
+    
+    if (!devi) {
+        console.error('No devis data provided');
+        return;
+    }
+    
+    try {
+        let statusClass = 'secondary';
+        let statusText = devi.statut || 'N/A';
+        
+        if (devi.statut === 'valide') {
+            statusClass = 'success';
+            statusText = 'Validé';
+        } else if (devi.statut === 'en_attente') {
+            statusClass = 'warning';
+            statusText = 'En attente';
+        } else if (devi.statut === 'refuse') {
+            statusClass = 'danger';
+            statusText = 'Refusé';
+        } else if (devi.statut === 'brouillon') {
+            statusClass = 'secondary';
+            statusText = 'Brouillon';
         }
-
-        const $ = window.jQuery;
-
-        // CRITICAL: Do NOT initialize DataTables here - it's already done in admin.blade.php
-        // We only add devis-specific functionality here
-
-        // numerotation des lignes de devis
-        function numeroLigne() {
-            $(".ligne").each(function (index) {
-                $(this).find('div>small').text(index);
-                $(this).find('div>.element').attr('name', 'ligneDevi[' + index + '][element]');
-                $(this).find('div>.quantite').attr('name', 'ligneDevi[' + index + '][quantite]');
-                $(this).find('div>.prix_u').attr('name', 'ligneDevi[' + index + '][prix_u]');
+        
+        const patientName = devi.patient ? (devi.patient.name + ' ' + devi.patient.prenom) : 'N/A';
+        const medecinName = devi.medecin ? ('Dr. ' + devi.medecin.name + ' ' + (devi.medecin.prenom || '')) : 'Non assigné';
+        
+        // IMPORTANT: Laravel converts camelCase to snake_case in JSON
+        const ligneDevis = devi.ligne_devis || [];
+        
+        console.log('Ligne devis count:', ligneDevis.length);
+        
+        // Build line items table
+        let lignesHtml = '';
+        if (ligneDevis.length > 0) {
+            lignesHtml = `
+                <h6 class="mt-3">Éléments du devis:</h6>
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Élément</th>
+                            <th class="text-end">Qté</th>
+                            <th class="text-end">Prix U.</th>
+                            <th class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            ligneDevis.forEach(function(ligne, index) {
+                const quantite = parseFloat(ligne.quantite) || 0;
+                const prixU = parseFloat(ligne.prix_u) || 0;
+                const total = quantite * prixU;
+                
+                lignesHtml += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${ligne.element || 'N/A'}</td>
+                        <td class="text-end">${quantite}</td>
+                        <td class="text-end">${parseInt(prixU).toLocaleString('fr-FR')} FCFA</td>
+                        <td class="text-end">${parseInt(total).toLocaleString('fr-FR')} FCFA</td>
+                    </tr>
+                `;
             });
+            
+            lignesHtml += `
+                    </tbody>
+                </table>
+            `;
+        } else {
+            lignesHtml = `
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-info-circle"></i> Aucun élément dans ce devis
+                </div>
+            `;
         }
-
-        //calcul du total du devis
-        function total() {
-            let total = 0;
-            $(".ligne").each(function () {
-                total += parseInt($(this).find('div>.prix').val() || 0);
-            });
-            $('#imprimer_devis').find('.total1>strong').text(total);
-            // Recalculate grand total (total1 + total2)
-            totaux();
+        
+        // Build hospitalization section
+        let hospitalizationHtml = '';
+        const hasHospitalization = (devi.nbr_chambre > 0) || (devi.nbr_visite > 0) || (devi.nbr_ami_jour > 0);
+        
+        if (hasHospitalization) {
+            hospitalizationHtml = `
+                <h6 class="mt-3">Hospitalisation:</h6>
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th class="text-end">Quantité</th>
+                            <th class="text-end">Prix U.</th>
+                            <th class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            if (devi.nbr_chambre > 0) {
+                const totalChambre = (parseFloat(devi.nbr_chambre) || 0) * (parseFloat(devi.pu_chambre) || 0);
+                hospitalizationHtml += `
+                    <tr>
+                        <td>Chambre</td>
+                        <td class="text-end">${devi.nbr_chambre}</td>
+                        <td class="text-end">${parseInt(devi.pu_chambre).toLocaleString('fr-FR')} FCFA</td>
+                        <td class="text-end">${parseInt(totalChambre).toLocaleString('fr-FR')} FCFA</td>
+                    </tr>
+                `;
+            }
+            
+            if (devi.nbr_visite > 0) {
+                const totalVisite = (parseFloat(devi.nbr_visite) || 0) * (parseFloat(devi.pu_visite) || 0);
+                hospitalizationHtml += `
+                    <tr>
+                        <td>Visite</td>
+                        <td class="text-end">${devi.nbr_visite}</td>
+                        <td class="text-end">${parseInt(devi.pu_visite).toLocaleString('fr-FR')} FCFA</td>
+                        <td class="text-end">${parseInt(totalVisite).toLocaleString('fr-FR')} FCFA</td>
+                    </tr>
+                `;
+            }
+            
+            if (devi.nbr_ami_jour > 0) {
+                const totalAmi = (parseFloat(devi.nbr_ami_jour) || 0) * (parseFloat(devi.pu_ami_jour) || 0);
+                hospitalizationHtml += `
+                    <tr>
+                        <td>AMI-JOUR</td>
+                        <td class="text-end">${devi.nbr_ami_jour}</td>
+                        <td class="text-end">${parseInt(devi.pu_ami_jour).toLocaleString('fr-FR')} FCFA</td>
+                        <td class="text-end">${parseInt(totalAmi).toLocaleString('fr-FR')} FCFA</td>
+                    </tr>
+                `;
+            }
+            
+            hospitalizationHtml += `
+                    </tbody>
+                </table>
+            `;
         }
-
-        function total2(nbr_chambre, pu_chambre, nbr_visite, pu_visite, nbr_ami_jour, pu_ami_jour) {
-            const prix_chambre = parseInt(nbr_chambre || 0) * parseInt(pu_chambre || 0);
-            const prix_visite = parseInt(nbr_visite || 0) * parseInt(pu_visite || 0);
-            const prix_ami_jour = parseInt(nbr_ami_jour || 0) * parseInt(pu_ami_jour || 0);
-            $('#chambre').val(prix_chambre);
-            $('#visite').val(prix_visite);
-            $('#ami_jour').val(prix_ami_jour);
-            return prix_chambre + prix_visite + prix_ami_jour;
+        
+        // Build comments section
+        let commentsHtml = '';
+        if (devi.commentaire_medecin) {
+            commentsHtml = `
+                <div class="alert alert-info mt-3">
+                    <strong><i class="fas fa-comment-medical"></i> Commentaire du médecin:</strong><br>
+                    ${devi.commentaire_medecin}
+                </div>
+            `;
         }
-
-        function totaux() {
-            $(".total>strong").text(
-                parseInt($('.total2>strong').text() || 0) +
-                parseInt($(".total1>strong").text() || 0)
-            );
+        
+        let content = `
+            <div class="row mb-3">
+                <div class="col-6"><strong>Code:</strong> ${devi.code || 'N/A'}</div>
+                <div class="col-6"><strong>Type:</strong> 
+                    <span class="badge bg-primary">${devi.acces || 'N/A'}</span>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-6"><strong>Nom:</strong> ${devi.nom || 'N/A'}</div>
+                <div class="col-6"><strong>Statut:</strong> 
+                    <span class="badge bg-${statusClass}">
+                        ${statusText}
+                    </span>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-6"><strong>Patient:</strong> ${patientName}</div>
+                <div class="col-6"><strong>Médecin:</strong> ${medecinName}</div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-12">
+                    <strong>Date de création:</strong> 
+                    ${devi.created_at ? new Date(devi.created_at).toLocaleDateString('fr-FR') : 'N/A'}
+                </div>
+            </div>
+            <hr>
+            ${lignesHtml}
+            ${hospitalizationHtml}
+            ${commentsHtml}
+            <hr>
+            <h6>Résumé des montants:</h6>
+            <div class="row">
+                <div class="col-6">
+                    <strong>Montant initial:</strong><br>
+                    <span class="fs-5">${parseInt(devi.montant_avant_reduction || 0).toLocaleString('fr-FR')} FCFA</span>
+                </div>
+                <div class="col-6">
+                    <strong>Réduction appliquée:</strong><br>
+                    <span class="fs-5 ${devi.pourcentage_reduction > 0 ? 'text-danger' : ''}">${devi.pourcentage_reduction || 0}%</span>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <div class="alert alert-success mb-0">
+                        <strong>Montant final à payer:</strong><br>
+                        <span class="fs-4">${parseInt(devi.montant_apres_reduction || 0).toLocaleString('fr-FR')} FCFA</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Update modal content
+        $('#viewDevisContent').html(content);
+        
+        // Show modal using Bootstrap 5
+        const modalEl = document.getElementById('viewDevisModal');
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        } else {
+            console.error('Modal element not found');
         }
+        
+    } catch (error) {
+        console.error('Error in viewDevis:', error);
+        alert('Erreur lors de l\'affichage du devis');
+    }
+};
 
-        // Initial numbering
-        numeroLigne();
-
-        // Gestion de l'ouverture du modal (création / édition / impression)
-        $("#imprimer_devis").on('show.bs.modal', function (e) {
-            $(".ligne").remove(); // supprime les lignes chargées précédemment dans le formulaire du modal
-            $('.ajouter_ligne').find('button').removeClass('d-none');
-            $(this).find('.description').text($(e.relatedTarget).data('texte'));
-            $(this).find('.modal-title').text($(e.relatedTarget).data('title'));
-            $(this).find('.champ_patient').parent().addClass($(e.relatedTarget).data('champ_patient')); // rend le champ nom du patient visible ou pas
-            let devi = $(e.relatedTarget).data('devi'); // charge le devis à imprimer ou modifier (vide si création d'un nouveau)
-
-            // rendre les devis non modifiables
-            let dnone = " d-none ";
-            let ro = true;
-            // Le gestionnaire et l'admin modifient tous les devis
-            @can('update', \App\Models\Devi::class)
-            dnone = "";
-            ro = false;
-            @endcan
-
-            if (devi) { // modification (click sur le bouton dans la colonne "action")
-
-                // Gestionnaire, secretaire et admin peuvent modifier les devis de type "acte"
-                if (devi.acces === 'acte') {
-                    dnone = "";
-                    ro = false;
-                }
-
-                // Chargement des éléments du dévis selectionné dans le formulaire du modal
-                devi.ligne_devis.forEach(ligneDevi => {
-                    $(".ajouter_ligne").before(
-                        '<div class="row ligne my-2">' +
-                        ' <div class="col-sm-1 justify-content-center d-flex align-items-center" style="background-color:lavender;">' +
-                        '<small></small>' +
-                        ' </div>' +
-                        ' <div class="col-sm-4" style="background-color:lavenderblush;">' +
-                        '<input type="text" name="" class="form-control element" value="' + ligneDevi.element + '"  >' +
-                        '</div>' +
-                        '<div class="col-sm-2" style="background-color:lavender;">' +
-                        ' <input type="number" name="" class="form-control quantite" value="' + ligneDevi.quantite + '" >' +
-                        '</div>' +
-                        '<div class="col-sm-2" style="background-color:lavenderblush;">' +
-                        '<input type="number" name="" class="form-control prix_u" value="' + ligneDevi.prix_u + '" >' +
-                        '</div>' +
-                        '<div class="col-sm-2" style="background-color:lavender;">' +
-                        '<input type="number" name="" class="form-control prix"  value="' + (ligneDevi.quantite * ligneDevi.prix_u) + '">' +
-                        ' </div>' +
-                        ' <div class="col-sm-1 p-0 d-flex align-items-center" style="background-color:lavenderblush;">' +
-                        '<button class="btn  retirer_ligne m-auto  ' + dnone + ' text-danger"><i class="fa fa-minus-circle"></i></button>' +
-                        '</div>' +
-                        '</div>'
-                    );
-                });
-
-                $('#hospitalisation').parent('.row').addClass(dnone);
-                $('.ajouter_ligne').find('button').addClass(dnone);
-                $('#nom_devis').val(devi.nom);
-                $('#acces_devis').val(devi.acces);
-                $('#code_devis').val(devi.code);
-                $('#nbr_chambre').val(devi.nbr_chambre);
-                $('#nbr_visite').val(devi.nbr_visite);
-                $('#nbr_ami_jour').val(devi.nbr_ami_jour);
-                $('#pu_chambre').val(devi.pu_chambre);
-                $('#pu_ami_jour').val(devi.pu_ami_jour);
-                $('#pu_visite').val(devi.pu_visite);
-                $('.hospitalisation').find('input').attr("readonly", ro);
-
-                // calcul total 2
-                $('.total2>strong').text(
-                    total2(
-                        $("#nbr_chambre").val(),
-                        $("#pu_chambre").val(),
-                        $("#nbr_visite").val(),
-                        $("#pu_visite").val(),
-                        $("#nbr_ami_jour").val(),
-                        $("#pu_ami_jour").val()
-                    )
-                );
-                totaux();
-
-                if (devi.nbr_chambre > 0) {
-                    $('#hospitalisation').prop('checked', true);
-                    $('.hospitalisation').removeClass('d-none');
-                } else {
-                    $('#hospitalisation').prop('checked', false);
-                    $('.hospitalisation').addClass('d-none');
-                }
-
-                $('#nom_devis').attr("readonly", ro);
-                $('#code_devis').attr("readonly", ro);
-                $('.ligne').find('input').attr("readonly", ro);
-                $('#devis_form').attr('action', "{{ asset('admin/devis/edit/') }}/" + devi.id);
-                $('.devis_export').removeClass('d-none');
-                $('.champ_patient>select').attr('required', 'required');
-                numeroLigne();
-                total();
+// Attach event listeners using delegation
+waitForjQuery(function() {
+    $(document).ready(function() {
+        console.log('Attaching view devis button listeners...');
+        
+        // Use event delegation for dynamically loaded content
+        $(document).on('click', '.view-devis-btn', function(e) {
+            e.preventDefault();
+            console.log('View button clicked');
+            
+            const deviData = $(this).data('devi');
+            console.log('Devis data from button:', deviData);
+            
+            if (deviData) {
+                viewDevis(deviData);
             } else {
-                // Création d'un nouveau devis
-                $('#devis_form').attr('action', "{{ route('devis.store') }}");
-                $('.devis_export').addClass('d-none');
-                $('#nom_devis').val('');
-                $('#code_devis').val('');
-                $('#nbr_visite').val(0);
-                $('#nbr_ami_jour').val(0);
-                $('#nbr_chambre').val(0);
-                $('#visite').val(0);
-                $('#ami_jour').val(0);
-                $('#chambre').val(0);
-                $('#pu_chambre').val(30000);
-                $('#pu_ami_jour').val(9000);
-                $('#pu_visite').val(10000);
-                $(".total2>strong").text('0');
-                $(".total1>strong").text('0');
-                $(".total>strong").text('0');
-                $('#hospitalisation').prop('checked', false);
-                $('.hospitalisation').addClass('d-none');
+                console.error('No devis data found on button');
+                alert('Erreur: Données du devis introuvables');
             }
         });
-
-        $("#imprimer_devis").on('hide.bs.modal', function () {
-            $(this).find('.champ_patient').parent().removeClass('d-none');
-        });
-
-        // ajout d'une nouvelle ligne devis
-        $(".ajouter_ligne>div>button").on('click', function () {
-            $(".ajouter_ligne").before(
-                '<div class="row ligne my-2">' +
-                ' <div class="col-sm-1 justify-content-center d-flex align-items-center" style="background-color:lavender;">' +
-                '<small>#</small>' +
-                ' </div>' +
-                ' <div class="col-sm-4" style="background-color:lavenderblush;">' +
-                '<input type="text" name="" class="form-control element">' +
-                '</div>' +
-                '<div class="col-sm-2" style="background-color:lavender;">' +
-                ' <input type="number" name="" class="form-control quantite" value=0>' +
-                '</div>' +
-                '<div class="col-sm-2" style="background-color:lavenderblush;">' +
-                '<input type="number" name="" class="form-control prix_u" value=0>' +
-                '</div>' +
-                '<div class="col-sm-2" style="background-color:lavender;">' +
-                '<input type="number" name="" value=0 class="form-control prix">' +
-                ' </div>' +
-                ' <div class="col-sm-1 p-0 d-flex align-items-center" style="background-color:lavenderblush;">' +
-                '<button class="btn  retirer_ligne m-auto text-danger"><i class="fa fa-minus-circle"></i></button>' +
-                '</div>' +
-                '</div>'
-            );
-
-            numeroLigne();
-        });
-
-        $("body").on('change', ".prix_u", function () {
-            let qte = $(this).closest('.ligne').find('.quantite').val();
-            let prix_u = $(this).val();
-            $(this).closest('.ligne').find('.prix').val(qte * prix_u);
-            total();
-            totaux();
-        });
-
-        $("body").on('change', ".quantite", function () {
-            let prix_u = $(this).closest('.ligne').find('.prix_u').val();
-            let qte = $(this).val();
-            $(this).closest('.ligne').find('.prix').val(qte * prix_u);
-            total();
-            totaux();
-        });
-
-        $("body").on('click', '.retirer_ligne', function (e) {
-            e.preventDefault();
-            $(this).closest('.ligne').remove();
-            numeroLigne();
-            total();
-            totaux();
-        });
-
-        // permutation entre selection d'un nom et saisi d'un nouveau nom
-        $('#saisir_nom').on('click', function () {
-            if ($("#saisir_nom:checked").length) {
-                $('.champ_patient>input').attr({
-                    'required': true,
-                    'name': 'patient'
-                });
-                $('.champ_patient>select').attr({
-                    'required': false,
-                    'name': ''
-                });
-                $('.champ_patient>input').removeClass("d-none");
-                $('.champ_patient>select').addClass("d-none");
-            } else {
-                $('.champ_patient>input').attr({
-                    'required': false,
-                    'name': ''
-                });
-                $('.champ_patient>select').attr({
-                    'required': true,
-                    'name': 'patient'
-                });
-                $('.champ_patient>input').addClass("d-none");
-                $('.champ_patient>select').removeClass("d-none");
-            }
-        });
-
-        // soumission - edition
-        $(".devis_save").on("click", function (e) {
-            e.preventDefault();
-            $('#devis_form').submit();
-        });
-
-        // soumission - impression
-        $(".devis_export").on("click", function (e) {
-            e.preventDefault();
-            $('#devis_form')
-                .attr('action', "{{ asset('admin/devis/export/') }}/" + NumberToLetter(parseInt($('.total>strong').text() || 0)))
-                .submit();
-        });
-
-        // hospitalisation
-        $('#hospitalisation').on('click', function () {
-            if ($("#hospitalisation:checked").length) {
-                $(".hospitalisation").removeClass('d-none');
-            } else {
-                $(".hospitalisation").addClass('d-none');
-            }
-        });
-
-        $("body").on('change', "#nbr_chambre, #nbr_visite, #nbr_ami_jour, #pu_chambre , #pu_visite, #pu_ami_jour", function () {
-            let nbr_chambre = $('#nbr_chambre').val();
-            let nbr_visite = $('#nbr_visite').val();
-            let nbr_ami_jour = $('#nbr_ami_jour').val();
-            let pu_chambre = $('#pu_chambre').val();
-            let pu_visite = $("#pu_visite").val();
-            let pu_ami_jour = $("#pu_ami_jour").val();
-            $('.total2>strong').text(total2(nbr_chambre, pu_chambre, nbr_visite, pu_visite, nbr_ami_jour, pu_ami_jour));
-            totaux();
-        });
+        
+        console.log('View devis listeners attached');
     });
+});
+
+console.log('View devis functionality loaded');
 </script>
-@stop
 
 
+<script>
+// Initialize DataTable ONCE
+waitForjQuery(function() {
+    $(document).ready(function() {
+        if ($('#devisTable').length && !$.fn.DataTable.isDataTable('#devisTable')) {
+            console.log('Initializing devisTable...');
+            $('#devisTable').DataTable({
+                language: { 
+                    url: "{{ asset('vendor/i18n/fr_fr.json') }}" 
+                },
+                pageLength: 10,
+                responsive: true,
+                order: [[6, 'desc']]
+            });
+        }
+    });
+});
+</script>
+@endpush
 
-
-
-
+@endsection
 
 
 

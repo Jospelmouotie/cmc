@@ -177,6 +177,9 @@
                                     <tr>
                                         <td>
                                             <span class="badge bg-primary">{{ $patient->numero_dossier }}</span>
+                                            @if($patient->isNew())
+                                                <span class="badge bg-success ms-2 animate-pulse">NOUVEAU</span>
+                                            @endif
                                         </td>
                                         <td>
                                             <strong>{{ $patient->name }} {{ $patient->prenom }}</strong>
@@ -224,10 +227,10 @@
                                         </td>
                                         <td>
                                             @if($patient->consultations->count() > 0)
-                                                <span class="badge bg-success fs-7">Chirurgien</span>
+                                                <span class="badge bg-success">Chirurgien</span>
                                             @endif
                                             @if($patient->consultation_anesthesistes->count() > 0)
-                                                <span class="badge bg-warning fs-6">Anesthésiste</span>
+                                                <span class="badge bg-warning">Anesthésiste</span>
                                             @endif
                                         </td>
                                         <td>
