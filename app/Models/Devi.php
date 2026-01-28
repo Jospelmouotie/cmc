@@ -6,28 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class Devi extends Model
 {
-    protected $fillable = [
-        'user_id',
-        'patient_id',
-        'medecin_id',
-        'nom',
-        'code',
-        'acces',
-        'statut',
-        'pourcentage_reduction',
-        'montant_avant_reduction',
-        'montant_apres_reduction',
-        'date_validation',
-        'validateur_id',
-        'commentaire_medecin',
-        'nbr_jour_hosp',
-        'pu_chambre',
-        'pu_visite',
-        'pu_ami_jour',
-        'nbr_chambre',
-        'nbr_visite',
-        'nbr_ami_jour'
-    ];
+  protected $fillable = [
+    'user_id', 'patient_id', 'medecin_id', 'nom', 'code', 'acces', 
+    'statut', 'montant_avant_reduction', 'montant_apres_reduction',
+    'nbr_chambre', 'nbr_visite', 'nbr_ami_jour', 
+    'pu_chambre', 'pu_visite', 'pu_ami_jour'
+];
 
     protected $casts = [
         'date_validation' => 'datetime'
@@ -49,14 +33,17 @@ class Devi extends Model
         return $this->belongsTo(Patient::class);
     }
 
-    /**
-     * Get the assigned doctor
-     */
-    public function medecin()
-    {
-        return $this->belongsTo(User::class, 'medecin_id');
-    }
-
+ /**
+ * Get the assigned doctor
+ */
+public function medecin()
+{
+    // Correction : Utiliser 'medecin_id' comme clé étrangère
+    return $this->belongsTo(User::class, 'medecin_id')->withDefault([
+        'name' => 'Médecin',
+        'prenom' => 'Non assigné'
+    ]);
+}
     /**
      * Get the validator (doctor who validated)
      */

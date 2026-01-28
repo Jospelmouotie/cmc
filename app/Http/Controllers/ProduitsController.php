@@ -35,7 +35,7 @@ class ProduitsController extends Controller
         $produitCount = Cache::remember('produits_count', 3600, function () {
             return Produit::count();
         });
-        
+
         return view('admin.produits.index', compact('produits', 'produitCount'));
     }
 
@@ -46,38 +46,35 @@ class ProduitsController extends Controller
         return view('admin.produits.create');
     }
 
-    public function store(Request $request)
-    {
+ public function store(Request $request)
+{
+    $this->authorize('create', Produit::class);
 
-        $this->authorize('create', Produit::class);
+    $request->validate([
+        'designation'   => ['required', 'unique:produits'],
+        'categorie'     => 'required|string',
+        'qte_alerte'    => 'required|integer|min:0', // Force un entier positif
+        'qte_stock'     => 'required|integer|min:0',  // Force un entier positif
+        'prix_unitaire' => 'required|integer|min:0'
+    ]);
 
-
-        $request->validate([
-            'designation'=> ['required', 'unique:produits'],
-            'categorie'=> 'required',
-            'qte_alerte'=> 'required',
-            'qte_stock'=> 'required',
-            'prix_unitaire'=> 'required|integer'
+    DB::transaction(function () use ($request) {
+        $produit = Produit::create([
+            'designation'   => $request->get('designation'),
+            'categorie'     => $request->get('categorie'),
+            'qte_stock'     => $request->get('qte_stock'),
+            'qte_alerte'    => $request->get('qte_alerte'),
+            'prix_unitaire' => $request->get('prix_unitaire'),
+            'user_id'       => Auth::id(),
         ]);
-        DB::transaction(function () use ($request) {
-            $produit = Produit::create([
-                'designation' => $request->get('designation'),
-                'categorie' => $request->get('categorie'),
-                'qte_stock' => $request->get('qte_stock'),
-                'qte_alerte' => $request->get('qte_alerte'),
-                'prix_unitaire' => $request->get('prix_unitaire'),
-                'user_id' => Auth::id(),
-            ]);
-       
-            Cache::forget('produits_page_1');
-            Cache::forget('produits_count');
-            Cache::forget($produit->categorie . '_count');
-        });
-        // $produit->save();
 
-        return redirect()->route('produits.index')->with('success', 'Le produit a été ajouté avec succès !');
-    }
+        Cache::forget('produits_page_1');
+        Cache::forget('produits_count');
+        Cache::forget($produit->categorie . '_count');
+    });
 
+    return redirect()->route('produits.index')->with('success', 'Le produit a été ajouté avec succès !');
+}
     public function edit(Produit $produit)
     {
         $this->authorize('create', Produit::class);
@@ -88,25 +85,30 @@ class ProduitsController extends Controller
     }
 
 
-    public function update(ProduitRequest $request, Produit $produit)
-    {
-        $this->authorize('create', Produit::class);
+  public function update(Request $request, Produit $produit)
+{
+    $this->authorize('update', $produit);
 
+    // On ne valide que la quantité car c'est le seul champ modifiable
+    $request->validate([
+        'qte_stock' => 'required|integer|min:0'
+    ]);
 
-        $input = $request->input('qte_stock');
-        $nqte = $produit->qte_stock;
-        DB::transaction(function () use ($produit, $input, $nqte) {
-            $produit->qte_stock = $input + $nqte;
-            $produit->user_id = Auth::id();
-            $produit->save();
-        
-            Cache::forget('produits_page_1');
-            Cache::forget($produit->categorie . '_count');
-        
-        });
-        return redirect()->route('produits.index')->with('success', 'La mise à jour a bien été éffectuer');
-    }
+    $ajoutStock = $request->input('qte_stock');
+    $stockActuel = $produit->qte_stock;
 
+    DB::transaction(function () use ($produit, $ajoutStock, $stockActuel) {
+        // Logique d'addition : on ajoute la nouvelle saisie au stock existant
+        $produit->qte_stock = $stockActuel + $ajoutStock;
+        $produit->user_id = Auth::id();
+        $produit->save();
+
+        Cache::forget('produits_page_1');
+        Cache::forget($produit->categorie . '_count');
+    });
+
+    return redirect()->route('produits.index')->with('success', 'Le stock a été mis à jour avec succès !');
+}
 
     public function destroy(Produit $produit)
     {
@@ -191,7 +193,7 @@ class ProduitsController extends Controller
                     'message' => 'Le produit n\'est plus disponible en stock'
                 ]);
             }
-            
+
             $route = auth()->user()->role_id === 7
                 ? 'produits.pharmaceutique'
                 : 'produits.anesthesiste';
@@ -274,7 +276,7 @@ class ProduitsController extends Controller
 
         if (count($cart->items) > 0) {
             Session::put('cart', $cart);
-            
+
             if ($request->ajax()) {
                 return response()->json([
                     'success' => true,
@@ -285,7 +287,7 @@ class ProduitsController extends Controller
             }
         } else {
             Session::forget('cart');
-            
+
             if ($request->ajax()) {
                 return response()->json([
                     'success' => true,
@@ -378,8 +380,23 @@ class ProduitsController extends Controller
     }
 
 
+/**
+ * Recherche de produits pour l'autocomplétion des devis
+ */
+public function search(\Illuminate\Http\Request $request)
+{
+    $query = $request->get('q');
 
+    // Recherche dans la désignation
+    // Ajuste 'designation' par le nom exact de ta colonne en base de données
+    $produits = \App\Models\Produit::where('designation', 'LIKE', "%{$query}%")
+        ->select('id', 'designation', 'prix_unitaire', 'qte_stock')
+        ->where('qte_stock', '>', 0) // Optionnel: ne montrer que ce qui est en stock
+        ->limit(10)
+        ->get();
 
+    return response()->json($produits);
+}
 
 
 }
