@@ -56,122 +56,112 @@ class DevisController extends Controller
     /**
      * Store a newly created devis
      */
-    public function store(Request $request)
-    {
-        $this->authorize('create', Devi::class);
+ public function store(Request $request)
+{
+    $this->authorize('create', Devi::class);
 
-        $request->validate([
-            'patient_id' => 'required|exists:patients,id',
-            'code_devis' => 'nullable|string',
-            'nbr_chambre' => 'required|numeric|min:0',
-            'nbr_visite' => 'required|numeric|min:0',
-            'nbr_ami_jour' => 'required|numeric|min:0',
-            'pu_chambre' => 'required|numeric|min:0',
-            'pu_visite' => 'required|numeric|min:0',
-            'pu_ami_jour' => 'required|numeric|min:0',
-            'nom_devis' => 'required|string',
-            'acces_devis' => 'required|in:acte,bloc',
-            'ligneDevi' => 'array|required|min:1',
-            'ligneDevi.*.element' => 'required|string',
-            'ligneDevi.*.quantite' => 'required|numeric|min:1',
-            'ligneDevi.*.prix_u' => 'required|numeric|min:0',
-            'ligneDevi.*.type' => 'nullable|in:procedure,medication,material,anesthesie',
-            'ligneDevi.*.produit_id' => 'nullable|exists:produits,id',
-        ]);
+    $request->validate([
+        'patient_id' => 'required|exists:patients,id',
+        'code_devis' => 'nullable|string',
+        'nbr_chambre' => 'required|numeric|min:0',
+        'nbr_visite' => 'required|numeric|min:0',
+        'nbr_ami_jour' => 'required|numeric|min:0',
+        'pu_chambre' => 'required|numeric|min:0',
+        'pu_visite' => 'required|numeric|min:0',
+        'pu_ami_jour' => 'required|numeric|min:0',
+        'nom_devis' => 'required|string',
+        'acces_devis' => 'required|in:acte,bloc',
+        'ligneDevi' => 'array|required|min:1',
+        'ligneDevi.*.element' => 'required|string',
+        'ligneDevi.*.quantite' => 'required|numeric|min:1',
+        'ligneDevi.*.prix_u' => 'required|numeric|min:0',
+        'ligneDevi.*.type' => 'nullable|in:procedure,medication,material,anesthesie',
+        'ligneDevi.*.produit_id' => 'nullable|exists:produits,id',
+    ]);
 
-        try {
-            DB::transaction(function () use ($request) {
-                $patient = Patient::findOrFail($request->input('patient_id'));
-                $medecin = $this->findMedecinByName($patient->medecin_r);
+    try {
+        $devis = DB::transaction(function () use ($request) {
+            $patient = Patient::findOrFail($request->input('patient_id'));
+            $medecin = $this->findMedecinByName($patient->medecin_r);
 
-                if (!$medecin) {
-                    Log::warning('Devis created without assigned doctor', [
-                        'patient_id' => $patient->id,
-                        'medecin_r' => $patient->medecin_r,
-                    ]);
-                }
-
-                $devis = Devi::create([
-                    'nom' => $request->input('nom_devis'),
-                    'patient_id' => $patient->id,
-                    'medecin_id' => $medecin ? $medecin->id : null,
-                    'nbr_chambre' => $request->input('nbr_chambre'),
-                    'nbr_visite' => $request->input('nbr_visite'),
-                    'nbr_ami_jour' => $request->input('nbr_ami_jour'),
-                    'pu_chambre' => $request->input('pu_chambre'),
-                    'pu_visite' => $request->input('pu_visite'),
-                    'pu_ami_jour' => $request->input('pu_ami_jour'),
-                    'code' => $request->input('code_devis') ?? now()->format('Ymd') . '/' . substr($request->input('nom_devis'), 0, 4),
-                    'acces' => $request->input('acces_devis'),
-                    'statut' => 'brouillon',
-                    'user_id' => Auth::id(),
-                ]);
-
-                // Save line items (procedures and products)
-                $lignedevis = $request->input('ligneDevi');
-                foreach ($lignedevis as $ligneDevi) {
-                    $type = $ligneDevi['type'] ?? 'procedure';
-                    $produitId = $ligneDevi['produit_id'] ?? null;
-
-                    // Validate stock availability for products
-                    if ($produitId) {
-                        $produit = Produit::find($produitId);
-                        if ($produit && $produit->qte_stock < $ligneDevi['quantite']) {
-                            throw new \Exception("Stock insuffisant pour {$produit->designation}. Disponible: {$produit->qte_stock}, Demandé: {$ligneDevi['quantite']}");
-                        }
-                    }
-
-                    $devis->ligneDevis()->create([
-                        'type' => $type,
-                        'element' => $ligneDevi['element'],
-                        'quantite' => $ligneDevi['quantite'],
-                        'prix_u' => $ligneDevi['prix_u'],
-                        'produit_id' => $produitId,
-                        'stock_deducted' => false,
-                    ]);
-
-                    // Save as reusable element if procedure and doesn't exist
-                    if ($type === 'procedure') {
-                        $existingElement = DevisElement::where('nom', $ligneDevi['element'])->first();
-                        if (!$existingElement) {
-                            DevisElement::create([
-                                'nom' => $ligneDevi['element'],
-                                'prix_unitaire' => $ligneDevi['prix_u'],
-                                'actif' => true,
-                                'user_id' => Auth::id()
-                            ]);
-                            Cache::forget('devis_elements_actifs');
-                        }
-                    }
-                }
-
-                // Calculate totals
-                $devis->montant_avant_reduction = $devis->calculerMontantAvantReduction();
-                $devis->montant_apres_reduction = $devis->montant_avant_reduction;
-                $devis->save();
-
-                Log::info('Devis created successfully', [
-                    'devis_id' => $devis->id,
-                    'patient_id' => $patient->id,
-                    'medecin_id' => $medecin ? $medecin->id : null,
-                ]);
-
-                Cache::forget('devis_list');
-                Cache::tags(['devis'])->flush();
-            });
-
-            return redirect()->route('devis.index')
-                ->with('success', 'Devis créé avec succès !');
-
-        } catch (\Exception $e) {
-            Log::error('Devis Store Error: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
+            // 1. Création du Devis
+            $devis = Devi::create([
+                'nom' => $request->input('nom_devis'),
+                'patient_id' => $patient->id,
+                'medecin_id' => $medecin ? $medecin->id : null,
+                'nbr_chambre' => $request->input('nbr_chambre'),
+                'nbr_visite' => $request->input('nbr_visite'),
+                'nbr_ami_jour' => $request->input('nbr_ami_jour'),
+                'pu_chambre' => $request->input('pu_chambre'),
+                'pu_visite' => $request->input('pu_visite'),
+                'pu_ami_jour' => $request->input('pu_ami_jour'),
+                'code' => $request->input('code_devis') ?? now()->format('Ymd') . '/' . strtoupper(substr($request->input('nom_devis'), 0, 4)),
+                'acces' => $request->input('acces_devis'),
+                'statut' => 'brouillon',
+                'user_id' => Auth::id(),
             ]);
-            return redirect()->back()
-                ->withInput()
-                ->with('error', $e->getMessage());
-        }
+
+            // 2. Traitement des lignes de devis
+            foreach ($request->input('ligneDevi') as $ligneData) {
+                $type = $ligneData['type'] ?? 'procedure';
+                $produitId = $ligneData['produit_id'] ?? null;
+
+                // Vérification du stock en temps réel si c'est un produit
+                if ($produitId) {
+                    $produit = Produit::find($produitId);
+                    if ($produit && $produit->qte_stock < $ligneData['quantite']) {
+                        throw new \Exception("Stock insuffisant pour {$produit->designation}. Disponible: {$produit->qte_stock}");
+                    }
+                }
+
+                // Création de la ligne
+                $devis->ligneDevis()->create([
+                    'type' => $type,
+                    'element' => $ligneData['element'],
+                    'quantite' => $ligneData['quantite'],
+                    'prix_u' => $ligneData['prix_u'],
+                    'produit_id' => $produitId,
+                    'stock_deducted' => false, // Ne sera déduit qu'à la validation médicale
+                ]);
+
+                // Enregistrement comme élément réutilisable (si c'est une procédure)
+                if ($type === 'procedure') {
+                    DevisElement::firstOrCreate(
+                        ['nom' => $ligneData['element']],
+                        [
+                            'prix_unitaire' => $ligneData['prix_u'],
+                            'actif' => true,
+                            'user_id' => Auth::id()
+                        ]
+                    );
+                }
+            }
+
+            // 3. Calcul automatique des montants totaux
+            $devis->montant_avant_reduction = $devis->calculerMontantAvantReduction();
+            $devis->montant_apres_reduction = $devis->montant_avant_reduction;
+            $devis->save();
+
+            // 4. Nettoyage du cache (Simple forget car File/DB ne supportent pas les tags)
+            Cache::forget('devis_list');
+            Cache::forget('devis_elements_actifs');
+
+            return $devis;
+        });
+
+        Log::info("Devis #{$devis->id} créé par l'utilisateur " . Auth::id());
+
+        return redirect()->route('devis.index')
+            ->with('success', 'Devis créé avec succès !');
+
+    } catch (\Exception $e) {
+        Log::error('Erreur Store Devis: ' . $e->getMessage());
+
+        return redirect()->back()
+            ->withInput()
+            ->with('error', 'Erreur : ' . $e->getMessage());
     }
+}
 
     /**
      * Update existing devis

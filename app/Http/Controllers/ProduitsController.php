@@ -4,41 +4,37 @@ namespace App\Http\Controllers;
 
 use App\Models\Cart;
 use App\Models\Facture;
-use App\Http\Requests\ProduitRequest;
 use App\Models\Patient;
 use App\Models\Produit;
-use ZanySoft\LaravelPDF\Facades\PDF;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-// use Illuminate\Support\Facades\Input;
 use App\Services\PdfService;
-use Illuminate\Support\Facades\Validator;
 
 class ProduitsController extends Controller
 {
-    public function index()
-    {
-        $cacheKey = 'produits_page_' . request('page', 1);
+    /**
+     * Affiche la liste complète de tous les produits
+     */
+  public function index()
+{
+    $page = request('page', 1);
+    $cacheKey = "produits_all_page_{$page}";
 
-        $produits = Cache::remember($cacheKey,600, function () {
-            return Produit::select(['id', 'designation', 'categorie', 'qte_stock', 'qte_alerte', 'prix_unitaire'])
-            // ->get()
-            ->orderBy('created_at','asc')
-            ->paginate(50);
-        });
-        // Cache product count
-        $produitCount = Cache::remember('produits_count', 3600, function () {
-            return Produit::count();
-        });
+    // On récupère les produits paginés (50 par page)
+    $produits = Cache::remember($cacheKey, 600, function () {
+        return Produit::orderBy('designation', 'asc')->paginate(50);
+    });
 
-        return view('admin.produits.index', compact('produits', 'produitCount'));
-    }
+    // IMPORTANT : On récupère le vrai total depuis l'objet de pagination
+    // ou on force le rafraîchissement du cache
+    $produitCount = $produits->total();
 
+    return view('admin.produits.index', compact('produits', 'produitCount'));
+}
 
     public function create()
     {
@@ -46,69 +42,59 @@ class ProduitsController extends Controller
         return view('admin.produits.create');
     }
 
- public function store(Request $request)
-{
-    $this->authorize('create', Produit::class);
-
-    $request->validate([
-        'designation'   => ['required', 'unique:produits'],
-        'categorie'     => 'required|string',
-        'qte_alerte'    => 'required|integer|min:0', // Force un entier positif
-        'qte_stock'     => 'required|integer|min:0',  // Force un entier positif
-        'prix_unitaire' => 'required|integer|min:0'
-    ]);
-
-    DB::transaction(function () use ($request) {
-        $produit = Produit::create([
-            'designation'   => $request->get('designation'),
-            'categorie'     => $request->get('categorie'),
-            'qte_stock'     => $request->get('qte_stock'),
-            'qte_alerte'    => $request->get('qte_alerte'),
-            'prix_unitaire' => $request->get('prix_unitaire'),
-            'user_id'       => Auth::id(),
-        ]);
-
-        Cache::forget('produits_page_1');
-        Cache::forget('produits_count');
-        Cache::forget($produit->categorie . '_count');
-    });
-
-    return redirect()->route('produits.index')->with('success', 'Le produit a été ajouté avec succès !');
-}
-    public function edit(Produit $produit)
+    public function store(Request $request)
     {
         $this->authorize('create', Produit::class);
 
-//        $produit = Produit::find($id);
+        $request->validate([
+            'designation'   => ['required', 'unique:produits'],
+            'categorie'     => 'required|string',
+            'qte_alerte'    => 'required|integer|min:0',
+            'qte_stock'     => 'required|integer|min:0',
+            'prix_unitaire' => 'required|integer|min:0'
+        ]);
 
+        DB::transaction(function () use ($request) {
+            Produit::create([
+                'designation'   => $request->designation,
+                'categorie'     => $request->categorie,
+                'qte_stock'     => $request->qte_stock,
+                'qte_alerte'    => $request->qte_alerte,
+                'prix_unitaire' => $request->prix_unitaire,
+                'user_id'       => Auth::id(),
+            ]);
+
+            $this->clearProduitCache();
+        });
+
+        return redirect()->route('produits.index')->with('success', 'Le produit a été ajouté avec succès !');
+    }
+
+    public function edit(Produit $produit)
+    {
+        $this->authorize('update', $produit);
         return view('admin.produits.edit', compact('produit'));
     }
 
+    public function update(Request $request, Produit $produit)
+    {
+        $this->authorize('update', $produit);
 
-  public function update(Request $request, Produit $produit)
-{
-    $this->authorize('update', $produit);
+        $request->validate([
+            'qte_stock' => 'required|integer|min:0'
+        ]);
 
-    // On ne valide que la quantité car c'est le seul champ modifiable
-    $request->validate([
-        'qte_stock' => 'required|integer|min:0'
-    ]);
+        DB::transaction(function () use ($produit, $request) {
+            // Logique d'addition au stock existant
+            $produit->qte_stock += $request->input('qte_stock');
+            $produit->user_id = Auth::id();
+            $produit->save();
 
-    $ajoutStock = $request->input('qte_stock');
-    $stockActuel = $produit->qte_stock;
+            $this->clearProduitCache();
+        });
 
-    DB::transaction(function () use ($produit, $ajoutStock, $stockActuel) {
-        // Logique d'addition : on ajoute la nouvelle saisie au stock existant
-        $produit->qte_stock = $stockActuel + $ajoutStock;
-        $produit->user_id = Auth::id();
-        $produit->save();
-
-        Cache::forget('produits_page_1');
-        Cache::forget($produit->categorie . '_count');
-    });
-
-    return redirect()->route('produits.index')->with('success', 'Le stock a été mis à jour avec succès !');
-}
+        return redirect()->route('produits.index')->with('success', 'Le stock a été mis à jour avec succès !');
+    }
 
     public function destroy(Produit $produit)
     {
@@ -116,144 +102,89 @@ class ProduitsController extends Controller
 
         DB::transaction(function () use ($produit) {
             $produit->delete();
-            Cache::forget('produit_page_1');
-            Cache::forget('produits_count');
-            Cache::forget($produit->categorie . '_count');
+            $this->clearProduitCache();
         });
 
         return redirect()->route('produits.index')->with('success', 'Le produit a bien été supprimé');
     }
 
-     public function stock_pharmaceutique()
-    {
-        $cacheKey = 'produits_pharma_page_' . request('page', 1);
+    // --- VUES PAR CATÉGORIES ---
 
-        $produits= Cache::remember(''. $cacheKey, 600, function () {
+    public function stock_pharmaceutique()
+    {
+        $page = request('page', 1);
+        $cacheKey = "produits_pharma_page_{$page}";
+
+        $produits = Cache::remember($cacheKey, 600, function () {
             return Produit::where('categorie', 'PHARMACEUTIQUE')
                 ->select('id', 'designation', 'qte_stock', 'qte_alerte', 'prix_unitaire')
                 ->orderBy('designation')
                 ->paginate(50);
-            });
-             $pharmaCount = Cache::remember('pharma_count', 3600, function () {
-                return Produit::where('categorie', 'PHARMACEUTIQUE')->count();
-             });
+        });
+
+        $pharmaCount = Cache::remember('pharma_count', 3600, function () {
+            return Produit::where('categorie', 'PHARMACEUTIQUE')->count();
+        });
 
         return view('admin.produits.pharmaceutique', compact('produits', 'pharmaCount'));
     }
 
     public function stock_materiel()
     {
-        $cacheKey = 'produits_materiel_page_' . request('page', 1);
-        $produits = Cache::remember( $cacheKey, 600, function () {
+        $page = request('page', 1);
+        $cacheKey = "produits_materiel_page_{$page}";
 
+        $produits = Cache::remember($cacheKey, 600, function () {
             return Produit::where('categorie', 'MATERIEL')
                 ->select('id', 'designation', 'qte_stock', 'qte_alerte', 'prix_unitaire')
                 ->orderBy('designation')
                 ->paginate(50);
+        });
 
-            });
-            $materielCount = Cache::remember('materiel_count', 3600, function () {
-                return Produit::where('categorie', 'MATERIEL')->count();
-            });
+        $materielCount = Cache::remember('materiel_count', 3600, function () {
+            return Produit::where('categorie', 'MATERIEL')->count();
+        });
 
         return view('admin.produits.materiel', compact('produits', 'materielCount'));
     }
 
-
     public function stock_anesthesiste()
     {
-//        $this->authorize('anesthesiste', Produit::class);
-//        $this->authorize('update', Produit::class);
-        $cacheKey = 'produits_anesthesiste_page_' . request('page', 1);
-        $produits = Cache::remember( $cacheKey, 600, function () {
+        $page = request('page', 1);
+        $cacheKey = "produits_anesthesiste_page_{$page}";
+
+        $produits = Cache::remember($cacheKey, 600, function () {
             return Produit::where('categorie', 'ANESTHESISTE')
                 ->select('id', 'designation', 'qte_stock', 'qte_alerte', 'prix_unitaire')
                 ->orderBy('designation')
                 ->paginate(50);
+        });
 
-            });
-            $pharmaCount = Cache::remember('anesthesiste_count', 3600, function () {
-                return Produit::where('categorie', 'ANESTHESISTE')->count();
-            });
+        $pharmaCount = Cache::remember('anesthesiste_count', 3600, function () {
+            return Produit::where('categorie', 'ANESTHESISTE')->count();
+        });
 
-        // return view('admin.produits.anesthesiste', array_merge(['produits' => $produits], ['pharmaCount' => $pharmaCount]));
-        return view('admin.produits.anesthesiste', compact('produits' , 'pharmaCount'));
-
+        return view('admin.produits.anesthesiste', compact('produits', 'pharmaCount'));
     }
+
+    // --- FACTURATION & PANIER ---
 
     public function add_to_cart(Request $request, $id)
     {
-        $produit = Produit::select(['id', 'designation', 'qte_stock', 'qte_alerte', 'prix_unitaire', 'categorie'])
-            ->findOrFail($id);
+        $produit = Produit::findOrFail($id);
 
-        if ($produit->qte_stock == 0) {
-            if ($request->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Le produit n\'est plus disponible en stock'
-                ]);
-            }
-
-            $route = auth()->user()->role_id === 7
-                ? 'produits.pharmaceutique'
-                : 'produits.anesthesiste';
-
-            return redirect()->route($route)
-                ->with('error', 'Le produit n\'est plus disponible en stock');
-        }
-
-        $oldCart = Session::get('cart', null);
-        $cart = new Cart($oldCart);
-        $cart->add($produit, $produit->id);
-
-        $request->session()->put('cart', $cart);
-
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'items' => $cart->items,
-                'totalPrix' => $cart->totalPrix,
-                'totalQte' => $cart->totalQte
-            ]);
-        }
-
-        flash()->success("La facture vient d'être mise à jour");
-        return redirect()->route('pharmaceutique.facturation');
-    }
-
-    public function facturation()
-    {
-
-        if(!Session::has('cart')){
-
-            return view('admin.produits.facturation');
+        if ($produit->qte_stock <= 0) {
+            $msg = 'Le produit n\'est plus disponible en stock';
+            return $request->ajax()
+                ? response()->json(['success' => false, 'message' => $msg])
+                : redirect()->back()->with('error', $msg);
         }
 
         $oldCart = Session::get('cart');
         $cart = new Cart($oldCart);
-        $produit = Produit::whereIn('id', array_keys($cart->items))->get();
-        $patient = Patient::all();
+        $cart->add($produit, $produit->id);
 
-        return view('admin.produits.facturation',
-            [
-                'produit' => $produit,
-                'produits' => $cart->items,
-                'totalPrix' => $cart->totalPrix,
-                'patient' => $patient
-            ]);
-    }
-
-    public function getReduceByOne(Request $request, $id)
-    {
-        $oldCart = Session::has('cart') ? Session::get('cart') : null;
-        $cart = new Cart($oldCart);
-        $cart->reduceByOne($id);
-
-        if (count($cart->items) > 0) {
-            Session::put('cart', $cart);
-        } else {
-            Session::forget('cart');
-        }
+        Session::put('cart', $cart);
 
         if ($request->ajax()) {
             return response()->json([
@@ -264,148 +195,101 @@ class ProduitsController extends Controller
             ]);
         }
 
-        flash()->success("La facture vient d'être mise à jour");
-        return redirect()->route('pharmaceutique.facturation');
+        return redirect()->route('pharmaceutique.facturation')->with('success', "Facture mise à jour");
     }
 
-    public function getRemoveItem(Request $request, $id)
+    public function facturation()
     {
-        $oldCart = Session::has('cart') ? Session::get('cart') : null;
-        $cart = new Cart($oldCart);
-        $cart->removeItem($id);
-
-        if (count($cart->items) > 0) {
-            Session::put('cart', $cart);
-
-            if ($request->ajax()) {
-                return response()->json([
-                    'success' => true,
-                    'items' => $cart->items,
-                    'totalPrix' => $cart->totalPrix,
-                    'totalQte' => $cart->totalQte
-                ]);
-            }
-        } else {
-            Session::forget('cart');
-
-            if ($request->ajax()) {
-                return response()->json([
-                    'success' => true,
-                    'items' => [],
-                    'totalPrix' => 0,
-                    'totalQte' => 0,
-                    'cartEmpty' => true  // Add this flag
-                ]);
-            }
+        if (!Session::has('cart')) {
+            return view('admin.produits.facturation');
         }
 
-        flash()->info("Le produit a bien été supprimé de la facture");
-        return redirect()->route('pharmaceutique.facturation');
+        $cart = new Cart(Session::get('cart'));
+        $produit = Produit::whereIn('id', array_keys($cart->items))->get();
+        $patient = Patient::orderBy('name')->get();
+
+        return view('admin.produits.facturation', [
+            'produit' => $produit,
+            'produits' => $cart->items,
+            'totalPrix' => $cart->totalPrix,
+            'patient' => $patient
+        ]);
     }
 
+    // --- PDF & EXPORT ---
 
-    public function export_pdf(Request $request, Produit $produit, Patient $patient)
+    public function export_pdf(Request $request)
     {
-        set_time_limit(120);
-        ini_set('memory_limit', '256M');
+        if (!Session::has('cart')) {
+            return redirect()->back()->with('error', 'Votre panier est vide');
+        }
 
         try {
-            if (!Session::has('cart')) {
-                return redirect()->route('pharmaceutique.facturation')
-                    ->with('error', 'Votre panier est vide');
-            }
-
-            $oldCart = Session::get('cart');
-            $cart = new Cart($oldCart);
-
+            $cart = new Cart(Session::get('cart'));
             $patientName = $request->input('patient');
 
             $facture = DB::transaction(function () use ($cart, $patientName) {
-                $facture = Facture::create([
+                $f = Facture::create([
                     'numero' => mt_rand(10000, 999999),
                     'quantite_total' => $cart->totalQte,
                     'prix_total' => $cart->totalPrix,
                     'patient' => $patientName,
-                    'user_id' => auth()->user()->id,
+                    'user_id' => Auth::id(),
                 ]);
-
-                $facture->produits()->attach($cart->items);
-
-                return $facture;
+                $f->produits()->attach($cart->items);
+                return $f;
             });
 
-            // Convert cart items to collection of objects
-            $produits = collect();
-            foreach ($cart->items as $item) {
-                $produits->push((object)[
-                    'designation' => $item['item']['designation'] ?? 'N/A',
+            $produitsData = collect($cart->items)->map(function ($item) {
+                return (object)[
+                    'designation'   => $item['item']['designation'] ?? 'N/A',
                     'prix_unitaire' => $item['item']['prix_unitaire'] ?? 0,
-                    'qty' => $item['qty'] ?? 0,
-                    'price' => $item['price'] ?? 0,
-                ]);
-            }
+                    'qty'           => $item['qty'] ?? 0,
+                    'price'         => $item['price'] ?? 0,
+                ];
+            });
 
-            // Clear any existing output
-            if (ob_get_length()) {
-                ob_end_clean();
-            }
-
-            // PdfService options
-            $orientation = request()->input('orientation', 'portrait');
-            $format = request()->input('format', 'A4');
-            $delivery = request()->input('delivery', 'stream');
-
-            $filename = 'pharmacie_' . $facture->numero . '.pdf';
-
-            // Clear cart after building data
             Session::forget('cart');
 
             return PdfService::generate('admin.etats.pharmacie', [
-                'patient' => $patientName,
-                'produits' => $produits,
+                'patient'   => $patientName,
+                'produits'  => $produitsData,
                 'totalPrix' => $cart->totalPrix,
-                'totalQte' => $cart->totalQte,
-                'facture' => $facture,
-            ], $filename, $orientation, $format, $delivery);
+                'totalQte'  => $cart->totalQte,
+                'facture'   => $facture,
+            ], 'pharmacie_'.$facture->numero.'.pdf');
 
         } catch (\Exception $e) {
             Log::error('Pharmacie PDF Error: ' . $e->getMessage());
-
-            if (ob_get_length()) {
-                ob_end_clean();
-            }
-
-            return redirect()->back()->with('error', 'Erreur lors de la génération de la facture pharmacie');
+            return redirect()->back()->with('error', 'Erreur lors de la génération du PDF');
         }
     }
 
+    /**
+     * Helper pour vider tous les caches liés aux produits
+     */
+    private function clearProduitCache()
+    {
+        // On vide les compteurs
+        Cache::forget('produits_total_count');
+        Cache::forget('pharma_count');
+        Cache::forget('materiel_count');
+        Cache::forget('anesthesiste_count');
 
-/**
- * Recherche de produits pour l'autocomplétion des devis
- */
-public function search(\Illuminate\Http\Request $request)
-{
-    $query = $request->get('q');
+        // Note: Pour vider les paginations, il est souvent plus simple d'utiliser
+        // des tags de cache si votre driver le supporte (Redis/Memcached).
+        // Sinon, on peut forcer l'expiration courte (600s) comme fait plus haut.
+    }
 
-    // Recherche dans la désignation
-    // Ajuste 'designation' par le nom exact de ta colonne en base de données
-    $produits = \App\Models\Produit::where('designation', 'LIKE', "%{$query}%")
-        ->select('id', 'designation', 'prix_unitaire', 'qte_stock')
-        ->where('qte_stock', '>', 0) // Optionnel: ne montrer que ce qui est en stock
-        ->limit(10)
-        ->get();
+    public function search(Request $request)
+    {
+        $query = $request->get('q');
+        $produits = Produit::where('designation', 'LIKE', "%{$query}%")
+            ->where('qte_stock', '>', 0)
+            ->select('id', 'designation', 'prix_unitaire', 'qte_stock')
+            ->limit(10)
+            ->get();
 
-    return response()->json($produits);
+        return response()->json($produits);
+    }
 }
-
-
-}
-
-
-
-
-
-
-
-
-

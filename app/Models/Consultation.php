@@ -84,6 +84,5 @@ class Consultation extends Model
     //     return $this->belongsTo(\App\Models\Devis::class);
     // }
 
-
 }
 

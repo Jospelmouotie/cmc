@@ -16,7 +16,7 @@ Route::post('login', 'Auth\LoginController@login');
 Route::post('logout', 'Auth\LoginController@logout')->name('logout');
 
 Route::group(['prefix' => 'admin', 'middleware' => ['auth'] ], function () {
-
+    Route::get('patients/suivis', 'PatientSuivisController@mespatientsSuivis')->name('patients.suivis');
     Route::get('/', 'AdminController@index');
     Route::get('dashboard', 'AdminController@dashboard')->name('admin.dashboard');
 
@@ -67,7 +67,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth'] ], function () {
     Route::patch('patients/{patient}', 'PatientsController@update')->name('patients.update');
     Route::put('patients/{patient}', 'PatientsController@motifMontantUpdate')->name('patients.motif_montant.update');
     Route::delete('patients/{patient}', 'PatientsController@destroy')->name('patients.destroy');
-    Route::get('patients/suivis', 'PatientSuivisController@patientsSuivis')->name('patients.suivis');
+
     Route::get('patient/{id}','PatientsController@generate_consultation')->name('consultation.pdf');
     Route::get('ordonance/{ordonance}','PatientsController@export_ordonance')->name('ordonance.pdf');
     Route::post('bilan-consultation','FactureController@export_bilan_consultation')->name('bilan_consultation.pdf');
@@ -178,6 +178,45 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth'] ], function () {
     Route::post('devis', 'DevisController@store')->name('devis.store');
     Route::post('devis/edit/{id}', 'DevisController@edit')->name('devis.edit');
     Route::post('devis/export/{montant}','DevisController@export_devis')->name('devis.pdf');
+
+
+
+
+
+
+
+    // Devis Management
+
+    Route::delete('devis/{id}', 'DevisController@destroy')->name('devis.destroy');
+
+    Route::post('devis/envoyer-validation/{id}', 'DevisController@envoyerValidation')->name('devis.envoyer_validation');
+
+    Route::post('devis/annuler-envoi/{id}', 'DevisController@annulerEnvoi')->name('devis.annuler_envoi');
+
+    Route::post('devis/annuler-refus/{id}', 'DevisController@annulerRefus')->name('devis.annuler_refus');
+
+    Route::post('devis/annuler-validation/{id}', 'DevisController@annulerValidation')->name('devis.annuler_validation');
+
+    Route::post('devis/export/{montant}', 'DevisController@export_devis')->name('devis.pdf');
+    Route::get('devis/print/{id}', 'DevisController@printExisting')->name('devis.print');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // Anesthésiste & Chirurgien (Détails)
     Route::get('premedication-adaptation-traitement/{patient}', 'AnesthesisteController@Premdication_Traitement')->name('premedication_adaptation.index');

@@ -136,7 +136,7 @@ class PatientSuivisController extends Controller
     // }
 
 
-     public function patientsSuivis(Request $request)
+     public function mespatientsSuivis(Request $request)
     {
         $userId = Auth::id();
         $perPage = (int) $request->input('per_page', 10);

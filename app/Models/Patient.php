@@ -9,10 +9,10 @@ class Patient extends Model
 {
     protected $fillable = [
         'numero_dossier',
-        'name',                    
+        'name',
         'prenom',
         'mode_paiement',
-        'mode_paiement_info_sup',  
+        'mode_paiement_info_sup',
         'assurance',
         'assurancec',
         'assurec',
@@ -75,15 +75,17 @@ class Patient extends Model
         return $this->hasMany(\App\Models\ConsultationAnesthesiste::class);
     }
 
-    public function prescriptions()
-    {
-        return $this->hasMany(\App\Models\Prescription::class);
-    }
+
 
     public function imageries()
     {
         return $this->hasMany(\App\Models\Imagerie::class);
     }
+    public function isNew()
+{
+    // Si le patient a été créé il y a moins de 24 heures
+    return $this->created_at >= now()->subDay();
+}
 
     public function compte_rendu_bloc_operatoires()
     {
@@ -199,6 +201,25 @@ class Patient extends Model
         return Auth::user()->role_id === 2;
 
     }
+// Un patient appartient à un créateur (User)
 
 
+// Dans App\Models\Patient.php
+// Remplace 'public function prescriptions()' par :
+public function prescriptions()
+{
+    return $this->prescription_medicales();
+}
+
+public function prescription_medicales()
+{
+    return $this->hasManyThrough(
+        \App\Models\PrescriptionMedicale::class,
+        \App\Models\FichePrescriptionMedicale::class,
+        'patient_id',
+        'fiche_prescription_medicale_id',
+        'id',
+        'id'
+    );
+}
 }
