@@ -6,28 +6,22 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\Patient;
-use Faker\Factory;
 
 class PatientsTableSeeder extends Seeder
 {
     public function run()
     {
-        $faker = Factory::create();
-
-        // Sur Render/PostgreSQL, on ne peut pas désactiver les contraintes.
-        // On vide donc les tables dans l'ordre inverse des relations (les enfants d'abord).
-        $this->command->info("Nettoyage des tables...");
+        // Nettoyage des tables (Ordre respectant les clés étrangères)
         DB::table('prescription_medicales')->delete();
         DB::table('fiche_prescription_medicales')->delete();
         DB::table('consultations')->delete();
         DB::table('dossiers')->delete();
         DB::table('patients')->delete();
 
-        // 2. Récupération des médecins cibles
         $medecins = User::whereIn('login', ['medecin1', 'medecin2', 'medecin3'])->get();
 
         if ($medecins->isEmpty()) {
-            $this->command->error("Aucun médecin trouvé (medecin1, 2, 3). Vérifiez votre AdminUserSeeder.");
+            $this->command->error("Aucun médecin trouvé. Lancez d'abord l'AdminUserSeeder.");
             return;
         }
 
@@ -35,11 +29,14 @@ class PatientsTableSeeder extends Seeder
             $this->command->info("Création des patients pour : {$medecin->login}");
 
             for ($i = 1; $i <= 5; $i++) {
+                // Remplacement de Faker par des données statiques/aléatoires simples
+                $numDossier = rand(100000, 999999);
+
                 $patient = Patient::create([
                     'user_id'          => $medecin->id,
-                    'numero_dossier'   => $faker->unique()->numberBetween(100000, 999999),
-                    'name'             => strtoupper($faker->lastName),
-                    'prenom'           => $faker->firstName,
+                    'numero_dossier'   => $numDossier,
+                    'name'             => "NOM-" . $numDossier,
+                    'prenom'           => "Prenom-" . $i,
                     'assurance'        => 'AXA',
                     'montant'          => 25000,
                     'assurancec'       => 5000,
@@ -53,14 +50,15 @@ class PatientsTableSeeder extends Seeder
 
                 DB::table('dossiers')->insert([
                     'patient_id'     => $patient->id,
-                    'portable_1'     => $faker->phoneNumber,
-                    'sexe'           => $faker->randomElement(['M', 'F']),
-                    'date_naissance' => $faker->date('Y-m-d', '-30 years'),
-                    'adresse'        => $faker->address,
+                    'portable_1'     => '06000000' . $i,
+                    'sexe'           => ($i % 2 == 0) ? 'M' : 'F',
+                    'date_naissance' => '1990-01-01',
+                    'adresse'        => 'Adresse de test ' . $i,
                     'created_at'     => now(),
                     'updated_at'     => now(),
                 ]);
 
+                // ... (Le reste du code pour consultations et prescriptions reste identique)
                 DB::table('consultations')->insert([
                     'patient_id'                => $patient->id,
                     'user_id'                   => $medecin->id,
