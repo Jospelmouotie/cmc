@@ -13,21 +13,43 @@ class PatientsTableSeeder extends Seeder
     public function run()
     {
         $faker = Factory::create();
+        $driver = DB::getDriverName();
 
-        // 1. Récupération des médecins cibles
+        // 1. Désactivation des contraintes (Compatibilité PostgreSQL/MySQL)
+        if ($driver === 'pgsql') {
+            DB::statement("SET session_replication_role = 'replica';");
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        }
+
+        // Nettoyage des tables pour éviter les erreurs de doublons
+        DB::table('prescription_medicales')->truncate();
+        DB::table('fiche_prescription_medicales')->truncate();
+        DB::table('consultations')->truncate();
+        DB::table('dossiers')->truncate();
+        DB::table('patients')->truncate();
+
+        // Réactivation des contraintes
+        if ($driver === 'pgsql') {
+            DB::statement("SET session_replication_role = 'origin';");
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        }
+
+        // 2. Récupération des médecins cibles
         $medecins = User::whereIn('login', ['medecin1', 'medecin2', 'medecin3'])->get();
 
         if ($medecins->isEmpty()) {
-            $this->command->error("Aucun médecin trouvé avec les logins 'medecin1', 'medecin2' ou 'medecin3'.");
+            $this->command->error("Aucun médecin trouvé. Assurez-vous que les logins 'medecin1', 'medecin2' et 'medecin3' existent.");
             return;
         }
 
         foreach ($medecins as $medecin) {
-            $this->command->info("Création des patients pour : {$medecin->login}");
+            $this->command->info("Création des patients pour le médecin : {$medecin->login}");
 
             for ($i = 1; $i <= 5; $i++) {
 
-                // 2. Création du Patient (Table: patients)
+                // 3. Création du Patient
                 $patient = Patient::create([
                     'user_id'          => $medecin->id,
                     'numero_dossier'   => $faker->unique()->numberBetween(100000, 999999),
@@ -44,8 +66,7 @@ class PatientsTableSeeder extends Seeder
                     'date_insertion'   => now()->toDateString(),
                 ]);
 
-                // 3. Création du Dossier (Table: dossiers)
-                // Inclus 'sexe' et 'date_naissance' pour éviter les erreurs SQL
+                // 4. Création du Dossier
                 DB::table('dossiers')->insert([
                     'patient_id'     => $patient->id,
                     'portable_1'     => $faker->phoneNumber,
@@ -56,8 +77,7 @@ class PatientsTableSeeder extends Seeder
                     'updated_at'     => now(),
                 ]);
 
-                // 4. Création de la Consultation (Table: consultations)
-                // Inclus 'proposition_therapeutique' requis par ta migration
+                // 5. Création de la Consultation
                 DB::table('consultations')->insert([
                     'patient_id'                => $patient->id,
                     'user_id'                   => $medecin->id,
@@ -70,15 +90,14 @@ class PatientsTableSeeder extends Seeder
                     'updated_at'                => now(),
                 ]);
 
-                // 5. Création de la Fiche de Prescription (Table: fiche_prescription_medicales)
-                // Note: user_id est retiré ici car absent de ta table de fiches
+                // 6. Création de la Fiche de Prescription
                 $ficheId = DB::table('fiche_prescription_medicales')->insertGetId([
                     'patient_id' => $patient->id,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
 
-                // 6. Création de la Prescription (Table: prescription_medicales)
+                // 7. Création de la Prescription
                 DB::table('prescription_medicales')->insert([
                     'fiche_prescription_medicale_id' => $ficheId,
                     'user_id'    => $medecin->id,
@@ -92,6 +111,6 @@ class PatientsTableSeeder extends Seeder
             }
         }
 
-        $this->command->info("Seed terminé ! Toutes les relations sont établies.");
+        $this->command->info("Seed terminé avec succès !");
     }
 }

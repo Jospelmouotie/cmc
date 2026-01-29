@@ -10,10 +10,24 @@ class ProduitsTableSeeder extends Seeder
 {
     public function run()
     {
-        // On vide la table avant de commencer pour éviter les doublons sur 'designation'
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        $driver = DB::getDriverName();
+
+        // --- Désactivation des contraintes selon le type de base de données ---
+        if ($driver === 'pgsql') {
+            DB::statement("SET session_replication_role = 'replica';");
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        }
+
+        // On vide la table
         Produit::truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        // --- Réactivation des contraintes ---
+        if ($driver === 'pgsql') {
+            DB::statement("SET session_replication_role = 'origin';");
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        }
 
         $categories = [
             'pharmaceutique' => [
@@ -49,20 +63,26 @@ class ProduitsTableSeeder extends Seeder
             foreach ($categories as $catName => $items) {
                 if ($count >= 50) break;
 
-                // On prend un item au hasard dans la liste ou on génère un nom si vide
-                $designation = $items[array_rand($items)] . ($count > 35 ? " - Lot " . $count : "");
+                // Sélection aléatoire d'un nom
+                $baseDesignation = $items[array_rand($items)];
+                $designation = $baseDesignation;
 
-                // Pour éviter l'erreur Unique sur la désignation
-                if (in_array($designation, $allProducts)) continue;
+                // Si le produit existe déjà, on ajoute un suffixe pour éviter l'erreur "Unique"
+                $suffix = 1;
+                while (in_array($designation, $allProducts)) {
+                    $designation = $baseDesignation . " (Lot " . $suffix . ")";
+                    $suffix++;
+                }
+
                 $allProducts[] = $designation;
 
                 Produit::create([
                     'designation'   => $designation,
                     'categorie'     => $catName,
-                    'qte_stock'     => rand(10, 200),     // Stock aléatoire
-                    'qte_alerte'    => rand(5, 15),       // Seuil d'alerte
+                    'qte_stock'     => rand(10, 200),
+                    'qte_alerte'    => rand(5, 15),
                     'prix_unitaire' => $this->getRandomPrice($catName),
-                    'user_id'       => 1                  // Assumé comme l'admin
+                    'user_id'       => 1 // Assurez-vous qu'un utilisateur avec ID 1 existe
                 ]);
 
                 $count++;
