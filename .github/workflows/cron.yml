@@ -1,0 +1,10 @@
+name: Laravel Cron Job
+on:
+  schedule:
+    - cron: '*/13 * * * *' # S'exécute toutes les 15 min
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Appeler l'URL de mon site
+        run: curl -s https://cmc-6btn.onrender.com/login
