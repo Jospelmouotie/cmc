@@ -10,24 +10,10 @@ class ProduitsTableSeeder extends Seeder
 {
     public function run()
     {
-        $driver = DB::getDriverName();
-
-        // --- Désactivation des contraintes selon le type de base de données ---
-        if ($driver === 'pgsql') {
-            DB::statement("SET session_replication_role = 'replica';");
-        } else {
-            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        }
-
-        // On vide la table
-        Produit::truncate();
-
-        // --- Réactivation des contraintes ---
-        if ($driver === 'pgsql') {
-            DB::statement("SET session_replication_role = 'origin';");
-        } else {
-            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-        }
+        // Sur Render/PostgreSQL, on ne peut pas désactiver les clés étrangères.
+        // On vide donc la table simplement.
+        // Si d'autres tables pointent vers 'produits', il faudra vider les tables enfants d'abord.
+        DB::table('produits')->delete();
 
         $categories = [
             'pharmaceutique' => [
@@ -58,16 +44,13 @@ class ProduitsTableSeeder extends Seeder
         $count = 0;
         $allProducts = [];
 
-        // On remplit jusqu'à atteindre 50 produits
         while ($count < 50) {
             foreach ($categories as $catName => $items) {
                 if ($count >= 50) break;
 
-                // Sélection aléatoire d'un nom
                 $baseDesignation = $items[array_rand($items)];
                 $designation = $baseDesignation;
 
-                // Si le produit existe déjà, on ajoute un suffixe pour éviter l'erreur "Unique"
                 $suffix = 1;
                 while (in_array($designation, $allProducts)) {
                     $designation = $baseDesignation . " (Lot " . $suffix . ")";
@@ -82,7 +65,7 @@ class ProduitsTableSeeder extends Seeder
                     'qte_stock'     => rand(10, 200),
                     'qte_alerte'    => rand(5, 15),
                     'prix_unitaire' => $this->getRandomPrice($catName),
-                    'user_id'       => 1 // Assurez-vous qu'un utilisateur avec ID 1 existe
+                    'user_id'       => 1
                 ]);
 
                 $count++;

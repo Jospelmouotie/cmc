@@ -7,50 +7,29 @@ use Illuminate\Console\Command;
 
 class ActiveLicenceKey extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'nksoftcare:active-licence-key';
-
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
     protected $description = 'Activation de la clé de licence';
 
-    /**
-     * Create a new command instance.
-     *
-     * @return void
-     */
-    public function __construct()
-    {
-        parent::__construct();
-    }
-
-    /**
-     * Execute the console command.
-     *
-     * @return mixed
-     */
     public function handle()
     {
+        // On cherche la licence
+        $licence = Licence::where('client', 'cmcuapp')
+                  ->orWhere('client', 'CMCU-RENDER') // Ajout pour matcher ton seeder
+                  ->first();
 
-        $licence = Licence::where('client', 'cmcuapp')->first();
-
-        if ($licence->active_date){
-            $this->error('Votre licence est déja activé');
-        }else{
-
-            $this->info('Activation de la licence......');
-
-            Licence::ActiveLicenceKey();
-
-            $this->info('Votre licence a bien été ativé');
+        // Sécurité : Si la licence n'existe pas du tout
+        if (!$licence) {
+            $this->error('Aucune licence trouvée dans la base de données. Lancez le seeder d\'abord.');
+            return;
         }
 
+        // Sécurité : On vérifie la propriété active_date
+        if ($licence->active_date) {
+            $this->error('Votre licence est déjà activée.');
+        } else {
+            $this->info('Activation de la licence......');
+            Licence::ActiveLicenceKey();
+            $this->info('Votre licence a bien été activée.');
+        }
     }
 }

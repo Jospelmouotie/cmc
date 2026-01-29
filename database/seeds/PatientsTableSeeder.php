@@ -13,43 +13,28 @@ class PatientsTableSeeder extends Seeder
     public function run()
     {
         $faker = Factory::create();
-        $driver = DB::getDriverName();
 
-        // 1. Désactivation des contraintes (Compatibilité PostgreSQL/MySQL)
-        if ($driver === 'pgsql') {
-            DB::statement("SET session_replication_role = 'replica';");
-        } else {
-            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        }
-
-        // Nettoyage des tables pour éviter les erreurs de doublons
-        DB::table('prescription_medicales')->truncate();
-        DB::table('fiche_prescription_medicales')->truncate();
-        DB::table('consultations')->truncate();
-        DB::table('dossiers')->truncate();
-        DB::table('patients')->truncate();
-
-        // Réactivation des contraintes
-        if ($driver === 'pgsql') {
-            DB::statement("SET session_replication_role = 'origin';");
-        } else {
-            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-        }
+        // Sur Render/PostgreSQL, on ne peut pas désactiver les contraintes.
+        // On vide donc les tables dans l'ordre inverse des relations (les enfants d'abord).
+        $this->command->info("Nettoyage des tables...");
+        DB::table('prescription_medicales')->delete();
+        DB::table('fiche_prescription_medicales')->delete();
+        DB::table('consultations')->delete();
+        DB::table('dossiers')->delete();
+        DB::table('patients')->delete();
 
         // 2. Récupération des médecins cibles
         $medecins = User::whereIn('login', ['medecin1', 'medecin2', 'medecin3'])->get();
 
         if ($medecins->isEmpty()) {
-            $this->command->error("Aucun médecin trouvé. Assurez-vous que les logins 'medecin1', 'medecin2' et 'medecin3' existent.");
+            $this->command->error("Aucun médecin trouvé (medecin1, 2, 3). Vérifiez votre AdminUserSeeder.");
             return;
         }
 
         foreach ($medecins as $medecin) {
-            $this->command->info("Création des patients pour le médecin : {$medecin->login}");
+            $this->command->info("Création des patients pour : {$medecin->login}");
 
             for ($i = 1; $i <= 5; $i++) {
-
-                // 3. Création du Patient
                 $patient = Patient::create([
                     'user_id'          => $medecin->id,
                     'numero_dossier'   => $faker->unique()->numberBetween(100000, 999999),
@@ -66,7 +51,6 @@ class PatientsTableSeeder extends Seeder
                     'date_insertion'   => now()->toDateString(),
                 ]);
 
-                // 4. Création du Dossier
                 DB::table('dossiers')->insert([
                     'patient_id'     => $patient->id,
                     'portable_1'     => $faker->phoneNumber,
@@ -77,7 +61,6 @@ class PatientsTableSeeder extends Seeder
                     'updated_at'     => now(),
                 ]);
 
-                // 5. Création de la Consultation
                 DB::table('consultations')->insert([
                     'patient_id'                => $patient->id,
                     'user_id'                   => $medecin->id,
@@ -90,14 +73,12 @@ class PatientsTableSeeder extends Seeder
                     'updated_at'                => now(),
                 ]);
 
-                // 6. Création de la Fiche de Prescription
                 $ficheId = DB::table('fiche_prescription_medicales')->insertGetId([
                     'patient_id' => $patient->id,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
 
-                // 7. Création de la Prescription
                 DB::table('prescription_medicales')->insert([
                     'fiche_prescription_medicale_id' => $ficheId,
                     'user_id'    => $medecin->id,
@@ -110,7 +91,5 @@ class PatientsTableSeeder extends Seeder
                 ]);
             }
         }
-
-        $this->command->info("Seed terminé avec succès !");
     }
 }

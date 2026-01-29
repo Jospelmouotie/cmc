@@ -20,8 +20,8 @@ php artisan migrate:fresh  --force || true
 echo "→ Seeders spécifiques"
 
 php artisan db:seed --class="Database\Seeders\RolesTableSeeder" --force || true
-php artisan db:seed --class="Database\Seeders\AdminUserSeeder" --force || true
 php artisan db:seed --class="Database\Seeders\UsersTableSeeder" --force ||
+php artisan db:seed --class="Database\Seeders\AdminUserSeeder" --force || true
 php artisan db:seed --class="Database\Seeders\PatientsTableSeeder" --force || true
 php artisan db:seed --class="Database\Seeders\ProduitsTableSeeder" --force || true
 

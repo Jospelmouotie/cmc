@@ -33,15 +33,16 @@ class AdminUserSeeder extends Seeder
     );
 
     // 2. Correction de la Licence (doit matcher ta migration)
-    DB::table('licences')->updateOrInsert(
-        ['id' => 1],
-        [
-            'license_key' => 'FREE-TRIAL-2026',
-            'client'      => 'CMCU-RENDER',
-            'create_date' => now(),
-            'active_date' => now(),
-            'expire_date' => now()->addYears(10), // Correction du nom de la colonne
-        ]
-    );
+   // Dans AdminUserSeeder.php
+DB::table('licences')->updateOrInsert(
+    ['id' => 1],
+    [
+        'license_key' => 'FREE-TRIAL-2026',
+        'client'      => 'CMCU-RENDER', // <--- C'est ce nom qui sera cherché
+        'create_date' => now(),
+        'active_date' => now(),
+        'expire_date' => now()->addYears(10),
+    ]
+);
 }
 }
