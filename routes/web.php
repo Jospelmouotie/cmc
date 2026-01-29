@@ -266,14 +266,8 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth'] ], function () {
     Route::get('print-preview/{type}/{id}/print', 'PrintPreviewController@print')->name('print.preview.print');
 });
 
-
-
-
-
-
-
 // Dans web.php, en dehors du groupe avec middleware 'auth'
-Route::get('/common/task-scheduler-trigger-xyz123', function() {
+Route::get('/secretway', function() {
     Artisan::call('schedule:run');
     return "Cron executed at " . now();
 });

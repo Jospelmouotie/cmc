@@ -1,10 +1,16 @@
 name: Laravel Cron Job
+
 on:
   schedule:
-    - cron: '*/13 * * * *' # S'exécute toutes les 15 min
+    - cron: '*/10 * * * *'  # S'exécute toutes les 10 minutes pour garder Render éveillé
+  workflow_dispatch:        # <--- CETTE LIGNE PERMET LE LANCEMENT MANUEL
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Appeler l'URL de mon site
-        run: curl -s https://cmc-6btn.onrender.com/login
+      - name: Wake up Render and Run Cron
+        run: |
+          curl -I -s https://cmc-6btn.onrender.com/login
+          # Si vous créez la route secrète plus tard, ajoutez-la ici :
+          # curl -s https://cmc-6btn.onrender.com/secretway'
