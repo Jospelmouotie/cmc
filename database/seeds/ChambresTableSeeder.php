@@ -7,18 +7,21 @@ use Illuminate\Support\Facades\DB;
 
 class ChambresTableSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     *
-     * @return void
-     */
     public function run()
     {
-        // Désactiver les contraintes de clés étrangères pour éviter les erreurs lors du truncate
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        DB::table('chambres')->truncate();
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        // Vérifier le driver de la connexion actuelle
+        $driver = DB::getDriverName();
 
+        if ($driver === 'pgsql') {
+            // Méthode pour PostgreSQL : TRUNCATE avec CASCADE
+            // CASCADE supprime les données et gère les dépendances
+            DB::statement('TRUNCATE TABLE chambres RESTART IDENTITY CASCADE;');
+        } else {
+            // Méthode pour MySQL
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+            DB::table('chambres')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        }
         DB::table('chambres')->insert([
             [
                 'id' => 1,

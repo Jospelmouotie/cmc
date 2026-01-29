@@ -16,8 +16,19 @@ class OrdonancesTableSeeder extends Seeder
      */
     public function run()
     {
-        // Nettoyage de la table
-        DB::table('ordonances')->delete();
+        // Détecter le driver de la base de données
+        $driver = DB::getDriverName();
+
+        // Nettoyage de la table selon le driver
+        if ($driver === 'pgsql') {
+            // PostgreSQL : Vide la table, réinitialise l'ID et gère les relations
+            DB::statement('TRUNCATE TABLE ordonances RESTART IDENTITY CASCADE;');
+        } else {
+            // MySQL : Désactive les clés étrangères et vide la table
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+            DB::table('ordonances')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        }
 
         // Récupérer tous les patients existants
         $patients = Patient::all();
@@ -30,7 +41,7 @@ class OrdonancesTableSeeder extends Seeder
         $this->command->info("Génération des ordonnances pour " . $patients->count() . " patients...");
 
         foreach ($patients as $patient) {
-            // Liste de médicaments pour varier un peu
+            // Liste de médicaments pour varier
             $listeMedicaments = [
                 ['nom' => 'GRISEOFULINE, PEVARYL crème', 'desc' => '1 cp matin et soir, 1 application après la douche', 'qte' => '1 boite, 1 tube'],
                 ['nom' => 'PARACETAMOL 1g', 'desc' => '1 cp toutes les 8 heures en cas de douleur', 'qte' => '2 boites'],
@@ -38,12 +49,12 @@ class OrdonancesTableSeeder extends Seeder
                 ['nom' => 'AMOXICILLINE 1g', 'desc' => '1 cp matin et soir pendant 7 jours', 'qte' => '2 boites'],
             ];
 
-            // Sélectionner un médicament au hasard dans la liste ci-dessus
+            // Sélectionner un médicament au hasard
             $randomMed = $listeMedicaments[array_rand($listeMedicaments)];
 
             Ordonance::create([
-                'user_id'     => $patient->user_id, // On utilise le médecin rattaché au patient
-                'patient_id'  => $patient->id,      // ID dynamique du patient
+                'user_id'     => $patient->user_id ?? 1, // Fallback sur ID 1 si user_id est null
+                'patient_id'  => $patient->id,
                 'description' => $randomMed['desc'],
                 'medicament'  => $randomMed['nom'],
                 'quantite'    => $randomMed['qte'],
