@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
-// INSERT: PdfService import
+// Import du service pour la génération PDF
 use App\Services\PdfService;
 
 class FactureController extends Controller
@@ -73,7 +73,6 @@ class FactureController extends Controller
             ? Carbon::parse($request->input('end-date'))->endOfDay()
             : Carbon::now()->endOfMonth();
 
-        // Generate date list for the date selector
         $lists = [];
         $currentDate = Carbon::now()->subMonths(3);
         while ($currentDate <= Carbon::now()) {
@@ -115,7 +114,6 @@ class FactureController extends Controller
     {
         $this->authorize('update', new FactureConsultation);
 
-        // First validate basic fields
         $request->validate([
             'mode_paiement' => 'required',
             'num_cheque' => 'required_if:mode_paiement,chèque',
@@ -127,7 +125,6 @@ class FactureController extends Controller
             'montant' => 'required|numeric|min:0',
         ]);
 
-        // Custom validation: percu must be <= reste
         if ($request->input('percu') > $request->input('reste')) {
             return redirect()->back()
                 ->withErrors(['percu' => 'Le montant perçu ne peut pas dépasser le reste à payer.'])
@@ -175,94 +172,40 @@ class FactureController extends Controller
             ->with('info', 'La facture n° '.$id.' a bien été mise à jour');
     }
 
-    public function FactureChambre(Patient $patient)
-    {
-        $this->authorize('view', User::class);
-
-        $month = Carbon::now()->month;
-        $year = Carbon::now()->year;
-
-        $start_date = "01-" . $month . "-" . $year;
-        $start_time = strtotime($start_date);
-        $end_time = strtotime("+1 month", $start_time);
-
-        $lists = [];
-        for ($i = $start_time; $i < $end_time; $i += 86400) {
-            $lists[] = date('Y-m-d', $i);
-        }
-
-        $factureChambres = FactureChambre::with('patient')->get();
-
-        return view('admin.factures.chambre', compact('factureChambres', 'lists'));
-    }
-
     /**
-     * Export consultation invoice with layout options
-     *
-     * @param int $id Invoice ID
-     * @param Request $request
-     * @return \Illuminate\Http\Response
+     * Export de la facture de consultation en PDF
      */
     public function export_consultation($id, Request $request)
     {
+        // Augmentation des limites pour éviter les plantages
         set_time_limit(120);
-        ini_set('max_execution_time', 120);
-        ini_set('memory_limit', '256M');
+        ini_set('memory_limit', '512M');
 
         try {
-            $this->authorize('update', Patient::class);
+            // Vérification des droits (important)
             $this->authorize('print', Patient::class);
 
-            // Get layout preference from request (default: double-vertical)
             $layout = $request->input('layout', 'double-vertical');
             $autoPrint = $request->input('auto_print', false);
 
-            // Fetch facture with necessary relationships
             $facture = FactureConsultation::with([
                     'patient:id,name,prenom,numero_dossier,demarcheur,avance,assurec,assurancec,created_at,user_id',
                     'patient.user:id,name,prenom'
                 ])
-                ->select([
-                    'id', 'numero', 'patient_id', 'montant', 'avance',
-                    'reste', 'motif', 'details_motif', 'date_insertion',
-                    'assurance', 'assurancec', 'assurec'
-                ])
                 ->findOrFail($id);
 
-            // Use PdfService for generation
-            return PdfService::generateInvoice($facture, $layout, $autoPrint);
+            // Appel au PdfService. S'il n'existe pas, utilisez PDF::loadView
+            if (class_exists('App\Services\PdfService')) {
+                return PdfService::generateInvoice($facture, $layout, $autoPrint);
+            }
 
-
-        } catch (\Exception $e) {
-            Log::error('PDF Generation Error', [
-                'id' => $id,
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-
-            return redirect()->back()->with('error', 'Erreur PDF: ' . $e->getMessage());
-        }
-    }
-
-    public function export_client($id)
-    {
-        set_time_limit(120);
-        ini_set('memory_limit', '256M');
-
-        try {
-            $client = FactureClient::with('user:id,name,prenom')->findOrFail($id);
-
-            return PdfService::generate(
-                'admin.etats.clientP',
-                ['clients' => $client],
-                "facture_client_{$id}.pdf"
-            );
-
+            // Fallback si le Service n'est pas trouvé
+            $pdf = PDF::loadView('admin.etats.facture_consultation', compact('facture', 'layout'));
+            return $pdf->stream("facture_{$facture->numero}.pdf");
 
         } catch (\Exception $e) {
-            Log::error('Client PDF Error: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Erreur PDF client');
+            Log::error('PDF Generation Error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Erreur lors de la génération du PDF. Détails: ' . $e->getMessage());
         }
     }
 
@@ -284,59 +227,35 @@ class FactureController extends Controller
                 $query->where('motif', 'LIKE', '%'.$service)
                     ->whereNull('deleted_at');
             })
-            ->select([
-                'id', 'facture_consultation_id', 'montant', 'percu',
-                'reste', 'mode_paiement', 'created_at'
-            ])
             ->get()
             ->groupBy('facture_consultation_id');
 
-            $totalPercu = 0;
-            $totalMontant = 0;
-            $totalReste = 0;
-            $totalPartAssurance = 0;
-            $totalPartPatient = 0;
+            // Logique de calcul des totaux...
+            $totalPercu = 0; $totalMontant = 0; $totalReste = 0;
+            $totalPartAssurance = 0; $totalPartPatient = 0;
             $tFactures = collect();
             $mode_paiement = collect();
 
-            foreach ($factures as $key => $historique_factures) {
+            foreach ($factures as $historique_factures) {
+                $first = $historique_factures->first();
                 $factureData = (object)[
-                    'numero' => '',
-                    'name' => '',
-                    'montant' => 0,
-                    'percu' => 0,
-                    'reste' => 0,
-                    'partAssurance' => 0,
-                    'partPatient' => 0,
-                    'medecin' => '',
-                    'demarcheur' => ''
+                    'numero' => $first->facture_consultation->numero,
+                    'name' => $first->facture_consultation->patient->name,
+                    'montant' => $first->facture_consultation->montant,
+                    'percu' => $historique_factures->sum('percu'),
+                    'reste' => $historique_factures->last()->reste,
+                    'partAssurance' => $first->facture_consultation->assurancec ?? 0,
+                    'partPatient' => $first->facture_consultation->assurec ?? 0,
+                    'medecin' => $first->facture_consultation->medecin_r ?? '',
+                    'demarcheur' => $first->facture_consultation->demarcheur ?? ''
                 ];
 
-                foreach ($historique_factures as $historique_facture) {
-                    $factureData->numero = $historique_facture->facture_consultation->numero;
-                    $factureData->name = $historique_facture->facture_consultation->patient->name;
-                    $factureData->montant = $historique_facture->facture_consultation->montant;
-                    $factureData->percu += $historique_facture->percu;
-                    $factureData->reste = $historique_facture->reste;
-                    $factureData->partAssurance = $historique_facture->facture_consultation->assurancec ?? 0;
-                    $factureData->partPatient = $historique_facture->facture_consultation->assurec ?? 0;
-                    $factureData->medecin = $historique_facture->facture_consultation->medecin_r ?? '';
-                    $factureData->demarcheur = $historique_facture->facture_consultation->demarcheur ?? '';
-
-                    $modePaiementKey = $this->getModePaiementKey($historique_facture->mode_paiement);
-
-                    $existingMode = $mode_paiement->firstWhere('key', $modePaiementKey);
-                    if ($existingMode) {
-                        $existingMode->val += $historique_facture->percu;
-                    } else {
-                        $mode_paiement->push((object)[
-                            'key' => $modePaiementKey,
-                            'val' => $historique_facture->percu,
-                            'name' => $historique_facture->mode_paiement
-                        ]);
-                    }
-
-                    $totalPercu += $historique_facture->percu;
+                foreach($historique_factures as $h) {
+                    $key = $this->getModePaiementKey($h->mode_paiement);
+                    $existing = $mode_paiement->firstWhere('key', $key);
+                    if ($existing) { $existing->val += $h->percu; }
+                    else { $mode_paiement->push((object)['key' => $key, 'val' => $h->percu, 'name' => $h->mode_paiement]); }
+                    $totalPercu += $h->percu;
                 }
 
                 $tFactures->push($factureData);
@@ -346,21 +265,18 @@ class FactureController extends Controller
                 $totalPartPatient += $factureData->partPatient;
             }
 
-            return PdfService::generate(
-                'admin.etats.bilan_consultation',
-                [
-                    'mode_paiement' => $mode_paiement,
-                    'service' => $service,
-                    'tFactures' => $tFactures,
-                    'totalPercu' => $totalPercu,
-                    'totalMontant' => $totalMontant,
-                    'totalReste' => $totalReste,
-                    'totalPartAssurance' => $totalPartAssurance,
-                    'totalPartPatient' => $totalPartPatient
-                ],
-                "bilan_{$day}.pdf",
-                'landscape'
-            );
+            $pdf = PDF::loadView('admin.etats.bilan_consultation', [
+                'mode_paiement' => $mode_paiement,
+                'service' => $service,
+                'tFactures' => $tFactures,
+                'totalPercu' => $totalPercu,
+                'totalMontant' => $totalMontant,
+                'totalReste' => $totalReste,
+                'totalPartAssurance' => $totalPartAssurance,
+                'totalPartPatient' => $totalPartPatient
+            ])->setPaper('a4', 'landscape');
+
+            return $pdf->stream("bilan_{$day}.pdf");
 
         } catch (\Exception $e) {
             Log::error('Bilan PDF Error: ' . $e->getMessage());
@@ -371,65 +287,10 @@ class FactureController extends Controller
     private function getModePaiementKey($modePaiement)
     {
         $normalizedMap = [
-            'espèce' => 'espece',
-            'chèque' => 'cheque',
-            'orange money' => 'om',
-            'mtn mobile money' => 'momo',
-            'virement' => 'virement',
+            'espèce' => 'espece', 'chèque' => 'cheque', 'orange money' => 'om',
+            'mtn mobile money' => 'momo', 'virement' => 'virement',
             'bon de prise en charge' => 'bondepriseencharge'
         ];
-
         return $normalizedMap[strtolower($modePaiement)] ?? 'autre';
     }
-
-    public function export_bilan_clientexterne(Request $request)
-    {
-        set_time_limit(120);
-        ini_set('memory_limit', '256M');
-
-        try {
-            $day = $request->input('day');
-
-            $factures = FactureClient::with('client:id,name')
-                ->where('date_insertion', '=', $day)
-                ->get();
-
-            $totalPercu = FactureClient::where('date_insertion', '=', $day)->sum('montant');
-            $avances = FactureClient::where('date_insertion', '=', $day)->sum('avance');
-            $restes = FactureClient::where('date_insertion', '=', $day)->sum('reste');
-            $assurances = FactureClient::where('date_insertion', '=', $day)->sum('partassurance');
-            $clients = FactureClient::where('date_insertion', '=', $day)->sum('partpatient');
-
-            return PdfService::generate(
-                'admin.etats.bilan_clientexterne',
-                [
-                    'factures' => $factures,
-                    'totalPercu' => $totalPercu,
-                    'avances' => $avances,
-                    'restes' => $restes,
-                    'assurances' => $assurances,
-                    'clients' => $clients,
-                ],
-                "bilan_client_{$day}.pdf"
-            );
-
-        } catch (\Exception $e) {
-            Log::error('Bilan Client PDF Error: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Erreur bilan client PDF');
-        }
-    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

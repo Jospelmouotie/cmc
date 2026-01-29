@@ -16,36 +16,45 @@ use Illuminate\Support\Facades\Log;
 
 class FichePrescriptionMedicaleController extends Controller
 {
-    public function index($patient_id)
+   public function index($patient_id)
     {
         $this->authorize('infirmier_chirurgien', Patient::class);
+
+        // 1. Récupérer l'objet Patient (Indispensable pour la vue)
+        $patient = Patient::findOrFail($patient_id);
 
         $cacheKey = "fiche_prescription_medicale_$patient_id";
 
         $data = Cache::remember($cacheKey, 600, function () use ($patient_id) {
+            // 2. On récupère ou crée la fiche pour ce patient
+            $fiche = FichePrescriptionMedicale::firstOrCreate(['patient_id' => $patient_id]);
+
             return [
-                'fiche_prescription_medicale' => FichePrescriptionMedicale::with('prescription_medicales')
-                    ->firstOrCreate(['patient_id' => $patient_id]),
-                'prescription_medicales' => PrescriptionMedicale::select(['id', 'patient_id', 'user_id', 'medicament', 'posologie', 'voie', 'created_at'])
-                    ->with('patient:id,name,prenom', 'user:id,name')
-                    ->where('patient_id', $patient_id)
+                'fiche_prescription_medicale' => $fiche,
+                // On cherche par 'fiche_prescription_medicale_id'
+                'prescription_medicales' => PrescriptionMedicale::with('user:id,name')
+                    ->where('fiche_prescription_medicale_id', $fiche->id)
                     ->latest()
                     ->paginate(20)
             ];
         });
 
+        $fiche_prescription_medicale = $data['fiche_prescription_medicale'];
+        $prescription_medicales = $data['prescription_medicales'];
+
         $infirmieres = Cache::remember('infirmieres_role_4', 30, function () {
-            return User::where('role_id', 4)
-                ->select(['id', 'name'])
-                ->get();
+            return User::where('role_id', 4)->get();
         });
 
-        return view('admin.consultations.infirmiers.index_prescription_medicale', array_merge([
-            'patient' => Patient::select(['id', 'name', 'prenom'])->findOrFail($patient_id),
-            'infirmieres' => $infirmieres,
-        ], $data));
+        // 3. AJOUT de 'patient' dans le compact
+        return view('admin.consultations.infirmiers.index_prescription_medicale', compact(
+            'fiche_prescription_medicale',
+            'prescription_medicales',
+            'infirmieres',
+            'patient_id',
+            'patient' // <--- Cette variable manquait
+        ));
     }
-
     // public function store($patient_id)
     // {
     //     $this->authorize('medecin', Patient::class);
