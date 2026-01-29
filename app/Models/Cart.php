@@ -2,89 +2,102 @@
 
 namespace App\Models;
 
-
-use Illuminate\Support\Facades\DB;
+use App\Models\Produit;
 
 class Cart
 {
-    public $items = null;
+    public $items = [];
     public $totalQte = 0;
     public $totalPrix = 0;
 
+    /**
+     * Initialise le panier à partir de l'ancienne session
+     */
     public function __construct($oldCart)
     {
-        if ($oldCart)
-        {
-            $this->items = $oldCart->items;
-            $this->totalQte = $oldCart->totalQte;
-            $this->totalPrix = $oldCart->totalPrix;
-        }
-    }
-
-    public function add($item, $id)
-    {
-        $storeItem = ['quantite' => 0, 'prix_unitaire' => $item->prix, 'item' => $item];
-
-        if ($this->items)
-        {
-            if (array_key_exists($id, $this->items))
-            {
-                $storeItem = $this->items[$id];
+        if ($oldCart) {
+            // On s'assure de récupérer les données, que ce soit un objet ou un tableau
+            if (is_object($oldCart)) {
+                $this->items = $oldCart->items ?? [];
+                $this->totalQte = $oldCart->totalQte ?? 0;
+                $this->totalPrix = $oldCart->totalPrix ?? 0;
+            } else {
+                $this->items = $oldCart['items'] ?? [];
+                $this->totalQte = $oldCart['totalQte'] ?? 0;
+                $this->totalPrix = $oldCart['totalPrix'] ?? 0;
             }
         }
-        $storeItem['quantite']++;
-
-//        Mise a jour de la qte en bd apres ajout du produit a la facture
-
-            $produit = Produit::find($item->id);
-            $value = Produit::where('id', '=', $id)->sum('qte_stock');
-            $new_qte_stock = $value - 1;
-            $produit->update(['qte_stock' => $new_qte_stock]);
-
-//        Calcul des sommes de produis present sur la facture
-
-            $storeItem['prix_unitaire'] = $item->prix_unitaire;
-            $this->items[$id] = $storeItem;
-
-            $this->totalQte++;
-            $this->totalPrix += $item->prix_unitaire;
-
     }
 
+    /**
+     * Ajoute un produit au panier
+     */
+    public function add($item, $id)
+    {
+        // On force l'ID en chaîne pour éviter les problèmes d'indexation
+        $id = (string)$id;
+
+        // Structure de l'élément dans le panier
+        $storeItem = [
+            'qty' => 0,
+            'price' => 0, // Prix total pour cette ligne (prix_unitaire * qty)
+            'item' => $item
+        ];
+
+        // Si l'item existe déjà, on le récupère
+        if ($this->items && array_key_exists($id, $this->items)) {
+            $storeItem = $this->items[$id];
+        }
+
+        // Mise à jour des quantités et prix
+        $storeItem['qty']++;
+
+        // On s'assure d'utiliser le bon nom de colonne : prix_unitaire
+        $prixUnitaire = $item->prix_unitaire;
+        $storeItem['price'] = $prixUnitaire * $storeItem['qty'];
+
+        // Enregistrement dans la liste des items
+        $this->items[$id] = $storeItem;
+
+        // Mise à jour des totaux globaux
+        $this->totalQte++;
+        $this->totalPrix += $prixUnitaire;
+    }
+
+    /**
+     * Réduit la quantité d'un article de 1
+     */
     public function reduceByOne($id)
     {
-        $produit = Produit::find($id);
-        $this->items[$id]['quantite']--;
-        $value = Produit::where('id', '=', $id)->sum('qte_stock');
-        $new_qte_stock = $value + 1;
-        $produit->update(['qte_stock' => $new_qte_stock]);
+        $id = (string)$id;
 
-        $this->items[$id]['prix_unitaire'] -= $this->items[$id]['item']['prix_unitaire'];
-        $this->totalQte--;
-        $this->totalPrix -= $this->items[$id]['item']['prix_unitaire'];
+        if (isset($this->items[$id])) {
+            $prixUnitaire = $this->items[$id]['item']['prix_unitaire'];
 
-        if ($this->items[$id]['quantite'] <= 0)
-        {
+            $this->items[$id]['qty']--;
+            $this->items[$id]['price'] -= $prixUnitaire;
+
+            $this->totalQte--;
+            $this->totalPrix -= $prixUnitaire;
+
+            // Si la quantité tombe à 0, on supprime l'article
+            if ($this->items[$id]['qty'] <= 0) {
+                unset($this->items[$id]);
+            }
+        }
+    }
+
+    /**
+     * Supprime complètement un article du panier
+     */
+    public function removeItem($id)
+    {
+        $id = (string)$id;
+
+        if (isset($this->items[$id])) {
+            $this->totalQte -= $this->items[$id]['qty'];
+            $this->totalPrix -= $this->items[$id]['price'];
             unset($this->items[$id]);
         }
     }
-
-    public function removeItem($id)
-    {
-        $this->totalQte -= $this->items[$id]['quantite'];
-        $this->totalPrix -= $this->items[$id]['prix_unitaire'];
-        unset($this->items[$id]);
-    }
 }
-
-
-
-
-
-
-
-
-
-
-
-

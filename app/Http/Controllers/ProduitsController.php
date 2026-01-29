@@ -122,8 +122,9 @@ class ProduitsController extends Controller
             $patientName = $request->patient;
 
             // 3. Nettoyage
-            Cache::flush();
-            Session::forget('cart');
+         // Nettoyage ciblé uniquement
+Cache::forget('produits_count');
+Cache::forget('produits_page_1');
 
             // 🚀 GÉNÉRATION ET TÉLÉCHARGEMENT DU PDF
             // On utilise ob_end_clean pour éviter les caractères parasites dans le fichier
@@ -147,6 +148,7 @@ class ProduitsController extends Controller
 
             return redirect()->back()->with('error', 'Erreur lors de la facturation : '.$e->getMessage());
         }
+
     }
 
     public function edit(Produit $produit)
@@ -245,46 +247,41 @@ class ProduitsController extends Controller
 
     }
 
-    public function add_to_cart(Request $request, $id)
-    {
-        $produit = Produit::select(['id', 'designation', 'qte_stock', 'qte_alerte', 'prix_unitaire', 'categorie'])
-            ->findOrFail($id);
+ public function add_to_cart(Request $request, $id)
+{
+    // 1. Récupérer le produit
+    $produit = Produit::findOrFail($id);
 
-        if ($produit->qte_stock == 0) {
-            if ($request->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Le produit n\'est plus disponible en stock',
-                ]);
-            }
-
-            $route = auth()->user()->role_id === 7
-                ? 'produits.pharmaceutique'
-                : 'produits.anesthesiste';
-
-            return redirect()->route($route)
-                ->with('error', 'Le produit n\'est plus disponible en stock');
-        }
-
-        $oldCart = Session::get('cart', null);
-        $cart = new Cart($oldCart);
-        $cart->add($produit, $produit->id);
-
-        $request->session()->put('cart', $cart);
-
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'items' => $cart->items,
-                'totalPrix' => $cart->totalPrix,
-                'totalQte' => $cart->totalQte,
-            ]);
-        }
-
-        flash()->success("La facture vient d'être mise à jour");
-
-        return redirect()->route('pharmaceutique.facturation');
+    // 2. Vérifier le stock
+    if ($produit->qte_stock <= 0) {
+        return redirect()->back()->with('error', 'Le produit est en rupture de stock.');
     }
+
+    // 3. Charger le panier depuis la session
+    $oldCart = Session::get('cart');
+    $request->session()->save();
+    $cart = new Cart($oldCart);
+    $cart->add($produit, $produit->id);
+
+    // 4. SAUVEGARDE CRITIQUE
+    // On met le panier en session
+    Session::put('cart', $cart);
+
+    // On force l'écriture immédiate dans la table 'sessions' de MySQL
+    Session::save();
+
+    // 5. Réponse
+    if ($request->ajax()) {
+        return response()->json([
+            'success' => true,
+            'totalQte' => $cart->totalQte,
+            'totalPrix' => $cart->totalPrix
+        ]);
+    }
+
+    flash()->success("Produit ajouté à la facture");
+    return redirect()->route('pharmaceutique.facturation');
+}
 
     public function facturation()
     {
@@ -377,78 +374,81 @@ class ProduitsController extends Controller
         return redirect()->route('pharmaceutique.facturation');
     }
 
-public function export_pdf(Request $request)
-{
-    set_time_limit(120);
-    ini_set('memory_limit', '256M');
+    public function export_pdf(Request $request)
+    {
+        set_time_limit(120);
+        ini_set('memory_limit', '256M');
 
-    try {
-        if (!Session::has('cart')) {
-            return redirect()->route('pharmaceutique.facturation')->with('error', 'Votre panier est vide');
-        }
-
-        $oldCart = Session::get('cart');
-        $cart = new Cart($oldCart);
-        $patientName = $request->input('patient');
-
-        $facture = DB::transaction(function () use ($cart, $patientName) {
-            $f = Facture::create([
-                'numero' => mt_rand(10000, 999999),
-                'quantite_total' => $cart->totalQte,
-                'prix_total' => $cart->totalPrix,
-                'patient' => $patientName,
-                'user_id' => auth()->user()->id,
-            ]);
-
-            // Préparation des données pivot pour éviter l'erreur SQL "Incorrect integer value"
-            $pivotData = [];
-            foreach ($cart->items as $id => $item) {
-                // Utilisation de ?? 0 pour éviter l'erreur "Undefined array key"
-                $qte = $item['qty'] ?? ($item['quantite'] ?? 0);
-
-                $pivotData[$id] = [
-                    'item'          => (int)$id,
-                    'prix_unitaire' => $item['item']['prix_unitaire'] ?? 0,
-                    'quantite'      => $qte,
-                    'produit_id'    => (int)$id,
-                    'created_at'    => now(),
-                    'updated_at'    => now()
-                ];
+        try {
+            if (! Session::has('cart')) {
+                return redirect()->route('pharmaceutique.facturation')->with('error', 'Votre panier est vide');
             }
-            $f->produits()->attach($pivotData);
 
-            return $f;
-        });
+            $oldCart = Session::get('cart');
+            $cart = new Cart($oldCart);
+            $patientName = $request->input('patient');
 
-        // Conversion sécurisée des items pour la vue PDF
-        $produits = collect();
-        foreach ($cart->items as $item) {
-            $produits->push((object) [
-                'designation'   => $item['item']['designation'] ?? 'N/A',
-                'prix_unitaire' => $item['item']['prix_unitaire'] ?? 0,
-                'qty'           => $item['qty'] ?? ($item['quantite'] ?? 0),
-                'price'         => $item['price'] ?? 0,
-            ]);
+            $facture = DB::transaction(function () use ($cart, $patientName) {
+                $f = Facture::create([
+                    'numero' => mt_rand(10000, 999999),
+                    'quantite_total' => $cart->totalQte,
+                    'prix_total' => $cart->totalPrix,
+                    'patient' => $patientName,
+                    'user_id' => auth()->user()->id,
+                ]);
+
+                // Préparation des données pivot pour éviter l'erreur SQL "Incorrect integer value"
+                $pivotData = [];
+                foreach ($cart->items as $id => $item) {
+                    // Utilisation de ?? 0 pour éviter l'erreur "Undefined array key"
+                    $qte = $item['qty'] ?? ($item['quantite'] ?? 0);
+
+                    $pivotData[$id] = [
+                        'item' => (int) $id,
+                        'prix_unitaire' => $item['item']['prix_unitaire'] ?? 0,
+                        'quantite' => $qte,
+                        'produit_id' => (int) $id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+                $f->produits()->attach($pivotData);
+
+                return $f;
+            });
+
+            // Conversion sécurisée des items pour la vue PDF
+            $produits = collect();
+            foreach ($cart->items as $item) {
+                $produits->push((object) [
+                    'designation' => $item['item']['designation'] ?? 'N/A',
+                    'prix_unitaire' => $item['item']['prix_unitaire'] ?? 0,
+                    'qty' => $item['qty'] ?? ($item['quantite'] ?? 0),
+                    'price' => $item['price'] ?? 0,
+                ]);
+            }
+
+            if (ob_get_length()) {
+                ob_end_clean();
+            }
+
+            $filename = 'pharmacie_'.$facture->numero.'.pdf';
+            Session::forget('cart');
+
+            return PdfService::generate('admin.etats.pharmacie', [
+                'patient' => $patientName,
+                'produits' => $produits,
+                'totalPrix' => $cart->totalPrix,
+                'totalQte' => $cart->totalQte,
+                'facture' => $facture,
+            ], $filename);
+
+        } catch (\Exception $e) {
+            Log::error('Pharmacie PDF Error: '.$e->getMessage());
+
+            return redirect()->back()->with('error', 'Erreur lors de la génération : '.$e->getMessage());
         }
-
-        if (ob_get_length()) ob_end_clean();
-
-        $filename = 'pharmacie_'.$facture->numero.'.pdf';
-        Session::forget('cart');
-
-        return PdfService::generate('admin.etats.pharmacie', [
-            'patient'   => $patientName,
-            'produits'  => $produits,
-            'totalPrix' => $cart->totalPrix,
-            'totalQte'  => $cart->totalQte,
-            'facture'   => $facture,
-        ], $filename);
-
-    } catch (\Exception $e) {
-        Log::error('Pharmacie PDF Error: ' . $e->getMessage());
-        return redirect()->back()->with('error', 'Erreur lors de la génération : ' . $e->getMessage());
     }
-}
 
     public function generatePdf(Request $request)
     {
